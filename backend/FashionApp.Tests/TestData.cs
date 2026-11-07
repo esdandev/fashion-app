@@ -53,4 +53,12 @@ public static class TestData
         await db.SaveChangesAsync();
         return garment.Id;
     }
+
+    public static async Task SeedGarments(TestAppFactory factory, params Garment[] garments)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Garments.AddRange(garments);
+        await db.SaveChangesAsync();
+    }
 }

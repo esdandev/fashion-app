@@ -1,3 +1,4 @@
+using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,8 @@ app.MapGet("/api/health", () => Results.Ok(new
     status = "ok",
     utc = DateTimeOffset.UtcNow.ToString("O")
 }));
+
+app.MapGarmentEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {
