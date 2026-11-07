@@ -420,6 +420,7 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 15 | Reanálisis con confirmación | Sobrescritura automática | Nunca pisa correcciones manuales. |
 | 16 | Clima manual (frío/templado/calor) | API meteorológica o geolocalización | Elimina una integración y sus estados de error; no cambia la demo. |
 | 17 | Topes diarios + `ADMIN_SECRET` para refresh | Confiar en el uso personal | Evita una factura abierta y un endpoint sensible expuesto. |
+| 18 | Magick.NET-Q8-AnyCPU para imágenes | ImageSharp 4 | Apache 2.0 y `dotnet publish -c Release` funciona sin clave; ImageSharp bloquea el build Release sin licencia. |
 
 ## Bitácora
 
@@ -428,3 +429,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | Documento de diseño creado. Stack y alcance del MVP acordados. |
 | 2026-11-07 | Demo pública definida como solo lectura, con prendas de ejemplo y sin llamadas a la IA. Datos personales solo en instancia local. |
 | 2026-11-07 | Diseño aprobado. Plan de implementación de la Fase 0–1 escrito en [[Fashion App - Plan Fase 0-1]]. |
+| 2026-11-07 | ImageSharp reemplazado por Magick.NET (Apache 2.0) porque la versión 4 bloquea el publish Release sin licencia. |

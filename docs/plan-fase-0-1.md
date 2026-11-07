@@ -6,7 +6,7 @@
 
 **Architecture:** API .NET 10 Minimal APIs por features sobre SQLite, con un frontend Vite/React que consume JSON. La imagen se normaliza y guarda en disco; el análisis de IA queda detrás de una interfaz reemplazable por un fake en tests. La demo pública comparte el mismo código con `DEMO_MODE=true` y datos sembrados.
 
-**Tech Stack:** .NET 10, EF Core 10 + SQLite, SixLabors.ImageSharp, xUnit + `WebApplicationFactory`, Vite + React 19 + TypeScript + Tailwind 4, TanStack Query 5, React Router 7, Vitest, Playwright.
+**Tech Stack:** .NET 10, EF Core 10 + SQLite, Magick.NET-Q8-AnyCPU (Apache 2.0), xUnit + `WebApplicationFactory`, Vite + React 19 + TypeScript + Tailwind 4, TanStack Query 5, React Router 7, Vitest, Playwright.
 
 **Spec:** `00 - Projects/Fashion App.md`
 
@@ -110,7 +110,7 @@ fashion-app/
 
 **Files:**
 - Create: `backend/FashionApp.sln`, `backend/FashionApp.Api/FashionApp.Api.csproj`, `backend/FashionApp.Api/Program.cs`, `backend/FashionApp.Tests/FashionApp.Tests.csproj`, `backend/FashionApp.Tests/TestAppFactory.cs`, `backend/FashionApp.Tests/HealthTests.cs`
-
+¿
 **Interfaces:**
 - Consumes: nada.
 - Produces: `TestAppFactory : WebApplicationFactory<Program>`; endpoint `GET /api/health` que devuelve `200` con `{ "status": "ok", "utc": "<ISO-8601>" }`.
@@ -400,7 +400,7 @@ git commit -m "feat: add garment list, patch and archive endpoints"
 ### Task 4: Normalización de imágenes
 
 **Files:**
-- Create: `backend/FashionApp.Api/Infrastructure/Storage/IImageNormalizer.cs`, `backend/FashionApp.Api/Infrastructure/Storage/ImageSharpNormalizer.cs`, `backend/FashionApp.Tests/ImageNormalizerTests.cs`, `backend/FashionApp.Tests/TestImages.cs`
+- Create: `backend/FashionApp.Api/Infrastructure/Storage/IImageNormalizer.cs`, `backend/FashionApp.Api/Infrastructure/Storage/MagickImageNormalizer.cs`, `backend/FashionApp.Tests/ImageNormalizerTests.cs`, `backend/FashionApp.Tests/TestImages.cs`
 - Modify: `backend/FashionApp.Api/FashionApp.Api.csproj`
 
 **Interfaces:**
@@ -410,11 +410,13 @@ git commit -m "feat: add garment list, patch and archive endpoints"
   - `interface IImageNormalizer { Task<NormalizedImage> NormalizeAsync(Stream input, CancellationToken ct); }`
   - `sealed class InvalidImageException(string message) : Exception(message);`
 
-- [ ] **Step 1: Agregar ImageSharp**
+- [ ] **Step 1: Agregar Magick.NET (Apache 2.0)**
 
 ```bash
-dotnet add backend/FashionApp.Api package SixLabors.ImageSharp
+dotnet add backend/FashionApp.Api package Magick.NET-Q8-AnyCPU
 ```
+
+> Decisión de implementación: se descartó ImageSharp porque su versión 4 bloquea `dotnet publish -c Release` sin una clave de Six Labors. Magick.NET es Apache 2.0 y mantiene el mismo contrato.
 
 - [ ] **Step 2: Escribir los tests que fallan**
 
@@ -451,14 +453,15 @@ Expected: FAIL de compilación.
 
 - [ ] **Step 4: Implementar el normalizador**
 
-`ImageSharpNormalizer`:
-1. `Image.LoadAsync(input)` dentro de try/catch; cualquier excepción → `InvalidImageException("La imagen no se pudo leer.")`.
-2. `image.Mutate(x => x.AutoOrient())`.
-3. Redimensionar si el lado mayor supera 1600, con `ResizeMode.Max`.
-4. Codificar a WebP con calidad 82 en `MemoryStream`.
-5. Miniatura de 400 px (lado mayor) y WebP calidad 75.
-6. `ContentHash = Convert.ToHexString(SHA256.HashData(originalBytes)).ToLowerInvariant()`.
-7. Devolver dimensiones finales.
+`MagickImageNormalizer`:
+1. Leer el stream con `MagickImage.Read` dentro de try/catch; cualquier excepción de decodificación → `InvalidImageException("La imagen no se pudo leer.")`.
+2. `image.AutoOrient()`.
+3. `image.Strip()` para eliminar EXIF/ICC/XMP.
+4. Redimensionar si el lado mayor supera 1600, sin ampliar.
+5. Codificar a WebP con calidad 82 en `MemoryStream`.
+6. Miniatura de 400 px (lado mayor) y WebP calidad 75.
+7. `ContentHash = Convert.ToHexString(SHA256.HashData(originalBytes)).ToLowerInvariant()`.
+8. Devolver dimensiones finales.
 
 - [ ] **Step 5: Correr los tests y verificar que pasan**
 
