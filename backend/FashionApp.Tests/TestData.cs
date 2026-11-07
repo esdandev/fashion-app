@@ -1,6 +1,7 @@
 using FashionApp.Api.Domain;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,6 +51,37 @@ public static class TestData
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var garment = NewGarment("Camisa de lino", GarmentCategory.Top);
+        db.Garments.Add(garment);
+        await db.SaveChangesAsync();
+        return garment.Id;
+    }
+
+    /// <summary>
+    /// Seeds a garment whose normalized image and thumbnail are present in the
+    /// factory storage root, so endpoints that read the file can be exercised
+    /// without going through the upload endpoint.
+    /// </summary>
+    public static async Task<Guid> SeedGarmentWithImage(TestAppFactory factory, string name)
+    {
+        using var source = TestImages.CreateJpeg(640, 480);
+        var normalized = await new MagickImageNormalizer().NormalizeAsync(source, default);
+
+        var imagePath = $"{normalized.ContentHash}.webp";
+        var thumbPath = $"{normalized.ContentHash}-thumb.webp";
+        Directory.CreateDirectory(factory.UploadsPath);
+        await File.WriteAllBytesAsync(
+            Path.Combine(factory.UploadsPath, imagePath),
+            normalized.Original);
+        await File.WriteAllBytesAsync(
+            Path.Combine(factory.UploadsPath, thumbPath),
+            normalized.Thumbnail);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var garment = NewGarment(name, GarmentCategory.Top);
+        garment.ContentHash = normalized.ContentHash;
+        garment.ImagePath = imagePath;
+        garment.ThumbPath = thumbPath;
         db.Garments.Add(garment);
         await db.SaveChangesAsync();
         return garment.Id;

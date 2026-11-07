@@ -61,6 +61,7 @@ app.MapGet("/api/health", () => Results.Ok(new
 
 app.MapGarmentEndpoints();
 app.MapGarmentUploadEndpoint();
+app.MapGarmentReanalyzeEndpoint();
 
 app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, IConfiguration config) =>
 {
