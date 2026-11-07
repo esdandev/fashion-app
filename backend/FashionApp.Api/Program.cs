@@ -18,11 +18,33 @@ builder.Services.AddDbContext<AppDbContext>(o =>
 builder.Services.AddSingleton<IImageNormalizer, MagickImageNormalizer>();
 builder.Services.AddSingleton<FileStorage>();
 
-var aiProvider = builder.Configuration["Ai:Provider"];
-if (string.IsNullOrWhiteSpace(aiProvider)
+var aiSection = builder.Configuration.GetSection("Ai");
+builder.Services.Configure<AiOptions>(aiSection);
+var aiOptions = aiSection.Get<AiOptions>() ?? new AiOptions();
+var aiProvider = aiOptions.Provider?.Trim() ?? "";
+
+if (aiProvider.Equals("gemini", StringComparison.OrdinalIgnoreCase))
+{
+    // Fail at startup, not on the first upload: a missing key would otherwise
+    // surface as a silent Confidence = 0 for every garment.
+    if (string.IsNullOrWhiteSpace(aiOptions.ApiKey))
+    {
+        throw new InvalidOperationException(
+            "Ai:Provider está configurado como 'gemini' pero falta Ai:ApiKey. " +
+            "Define la variable de entorno AI__APIKEY o cambia Ai:Provider a 'fake'.");
+    }
+
+    builder.Services.AddHttpClient<IGarmentAnalyzer, GeminiGarmentAnalyzer>();
+}
+else if (aiProvider.Length == 0
     || aiProvider.Equals("fake", StringComparison.OrdinalIgnoreCase))
 {
     builder.Services.AddSingleton<IGarmentAnalyzer, FakeGarmentAnalyzer>();
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Proveedor de IA desconocido '{aiOptions.Provider}'. Usa 'fake' o 'gemini'.");
 }
 
 var app = builder.Build();
