@@ -117,6 +117,186 @@ public sealed class GarmentEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task List_orders_by_created_at_desc_across_pages()
+    {
+        var start = DateTimeOffset.UtcNow.AddHours(-10);
+        var garments = Enumerable.Range(0, 30)
+            .Select(i =>
+            {
+                var garment = NewGarment($"Prenda {i}", GarmentCategory.Top);
+                garment.CreatedAt = start.AddMinutes(i);
+                garment.UpdatedAt = garment.CreatedAt;
+                return garment;
+            })
+            .ToArray();
+        await SeedGarments(factory, garments);
+        var expected = garments
+            .OrderByDescending(g => g.CreatedAt)
+            .Select(g => g.Id)
+            .ToArray();
+
+        var client = factory.CreateClient();
+        var first = await client.GetFromJsonAsync<GarmentListResponse>("/api/garments");
+        var second = await client.GetFromJsonAsync<GarmentListResponse>(
+            $"/api/garments?cursor={first!.NextCursor}");
+
+        Assert.Equal(24, first.Items.Count);
+        Assert.NotNull(second);
+        Assert.Equal(6, second!.Items.Count);
+        Assert.Equal(expected, first.Items.Concat(second.Items).Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task List_filters_by_color_only()
+    {
+        var beigeSpring = NewGarment("Camisa", GarmentCategory.Top);
+        beigeSpring.ColorName = "Beige";
+        beigeSpring.Seasons = "spring,summer";
+
+        var negroWinter = NewGarment("Abrigo", GarmentCategory.Outerwear);
+        negroWinter.ColorName = "negro";
+        negroWinter.Seasons = "autumn,winter";
+
+        var beigeWinter = NewGarment("Jersey", GarmentCategory.Top);
+        beigeWinter.ColorName = "beige";
+        beigeWinter.Seasons = "autumn,winter";
+
+        await SeedGarments(factory, beigeSpring, negroWinter, beigeWinter);
+
+        var body = await factory.CreateClient()
+            .GetFromJsonAsync<GarmentListResponse>("/api/garments?color=BEIGE");
+
+        Assert.Equal(
+            new[] { "Camisa", "Jersey" },
+            body!.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task List_filters_by_season_only()
+    {
+        var beigeSpring = NewGarment("Camisa", GarmentCategory.Top);
+        beigeSpring.ColorName = "Beige";
+        beigeSpring.Seasons = "spring,summer";
+
+        var negroWinter = NewGarment("Abrigo", GarmentCategory.Outerwear);
+        negroWinter.ColorName = "negro";
+        negroWinter.Seasons = "autumn,winter";
+
+        var beigeWinter = NewGarment("Jersey", GarmentCategory.Top);
+        beigeWinter.ColorName = "beige";
+        beigeWinter.Seasons = "autumn,winter";
+
+        await SeedGarments(factory, beigeSpring, negroWinter, beigeWinter);
+
+        var body = await factory.CreateClient()
+            .GetFromJsonAsync<GarmentListResponse>("/api/garments?season=Winter");
+
+        Assert.Equal(
+            new[] { "Abrigo", "Jersey" },
+            body!.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task List_returns_next_cursor_only_after_24_items()
+    {
+        var start = DateTimeOffset.UtcNow.AddHours(-5);
+        var initial = Enumerable.Range(0, 24)
+            .Select(i =>
+            {
+                var garment = NewGarment($"Prenda {i}", GarmentCategory.Top);
+                garment.CreatedAt = start.AddMinutes(i);
+                garment.UpdatedAt = garment.CreatedAt;
+                return garment;
+            })
+            .ToArray();
+        await SeedGarments(factory, initial);
+
+        var client = factory.CreateClient();
+        var exact = await client.GetFromJsonAsync<GarmentListResponse>("/api/garments");
+        Assert.Equal(24, exact!.Items.Count);
+        Assert.Null(exact.NextCursor);
+
+        var extra = NewGarment("Extra", GarmentCategory.Top);
+        extra.CreatedAt = start.AddMinutes(24);
+        extra.UpdatedAt = extra.CreatedAt;
+        await SeedGarments(factory, extra);
+
+        var firstPage = await client.GetFromJsonAsync<GarmentListResponse>("/api/garments");
+        Assert.Equal(24, firstPage!.Items.Count);
+        Assert.NotNull(firstPage.NextCursor);
+
+        var secondPage = await client.GetFromJsonAsync<GarmentListResponse>(
+            $"/api/garments?cursor={firstPage.NextCursor}");
+        Assert.NotNull(secondPage);
+        Assert.Single(secondPage!.Items);
+        Assert.Null(secondPage.NextCursor);
+        Assert.Equal(25, firstPage.Items.Concat(secondPage.Items).Select(i => i.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task List_normalizes_non_utc_offsets_to_utc()
+    {
+        var oldUtc = DateTimeOffset.UtcNow.AddHours(-3);
+        var oldLocal = NewGarment("Antiguo", GarmentCategory.Top);
+        oldLocal.CreatedAt = oldUtc.ToOffset(TimeSpan.FromHours(-5));
+        oldLocal.UpdatedAt = oldLocal.CreatedAt;
+
+        var newest = NewGarment("Nuevo", GarmentCategory.Top);
+        newest.CreatedAt = DateTimeOffset.UtcNow;
+        newest.UpdatedAt = newest.CreatedAt;
+
+        await SeedGarments(factory, oldLocal, newest);
+
+        var body = await factory.CreateClient().GetFromJsonAsync<GarmentListResponse>("/api/garments");
+        Assert.Equal(new[] { "Nuevo", "Antiguo" }, body!.Items.Select(i => i.Name));
+
+        var saved = await GetGarment(oldLocal.Id);
+        Assert.NotNull(saved);
+        Assert.Equal(TimeSpan.Zero, saved!.CreatedAt.Offset);
+        Assert.Equal(oldUtc.UtcTicks, saved.CreatedAt.UtcTicks);
+    }
+
+    [Fact]
+    public async Task List_ordering_uses_created_at_id_index()
+    {
+        await SeedGarments(factory, Enumerable.Range(0, 30)
+            .Select(i =>
+            {
+                var garment = NewGarment($"Prenda {i}", GarmentCategory.Top);
+                garment.CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-i);
+                garment.UpdatedAt = garment.CreatedAt;
+                return garment;
+            })
+            .ToArray());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.OpenConnectionAsync();
+
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            EXPLAIN QUERY PLAN
+            SELECT "g"."Id", "g"."CreatedAt"
+            FROM "Garments" AS "g"
+            WHERE NOT ("g"."IsArchived")
+            ORDER BY "g"."CreatedAt" DESC, "g"."Id" DESC
+            LIMIT 25
+            """;
+
+        var plan = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            plan.Add(reader.GetString(3));
+
+        Assert.Contains(
+            plan,
+            detail => detail.Contains("IX_Garments_CreatedAt_Id", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            plan,
+            detail => detail.Contains("TEMP B-TREE", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Patch_updates_fields_and_serializes_lists()
     {
         var id = await SeedOneGarment();

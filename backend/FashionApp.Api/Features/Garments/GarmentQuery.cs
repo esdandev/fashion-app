@@ -11,8 +11,6 @@ public static class GarmentQuery
 {
     public const int PageSize = 24;
 
-    private const string SqliteTimestampFormat = "yyyy-MM-dd HH:mm:ss.FFFFFFFzzz";
-
     /// <summary>
     /// Applies the wardrobe filters and the opaque cursor. Results are ordered by
     /// <c>CreatedAt DESC, Id DESC</c>, which is the order the cursor was built for.
@@ -55,23 +53,17 @@ public static class GarmentQuery
         if (!string.IsNullOrWhiteSpace(cursor)
             && TryDecodeCursor(cursor, out var cursorCreatedAt, out var cursorId))
         {
-            // SQLite cannot compare DateTimeOffset columns either, so the keyset
-            // comparison is done on the provider's sortable ISO text form.
-            var cursorCreatedAtText = cursorCreatedAt.ToString(
-                SqliteTimestampFormat,
-                CultureInfo.InvariantCulture);
+            // CreatedAt is persisted as UTC ticks (see UtcTicksDateTimeOffsetConverter),
+            // so this keyset comparison is a plain INTEGER comparison in SQLite.
             var cursorIdText = cursorId.ToString("D").ToLowerInvariant();
             query = query.Where(g =>
-                string.Compare(g.CreatedAt.ToString(), cursorCreatedAtText) < 0
-                || (g.CreatedAt.ToString() == cursorCreatedAtText
+                g.CreatedAt < cursorCreatedAt
+                || (g.CreatedAt == cursorCreatedAt
                     && string.Compare(g.Id.ToString().ToLower(), cursorIdText) < 0));
         }
 
-        // SQLite refuses to ORDER BY a DateTimeOffset column. The provider stores it as
-        // sortable ISO text and every timestamp in this app is UTC, so order by its text
-        // form instead.
         return query
-            .OrderByDescending(g => g.CreatedAt.ToString())
+            .OrderByDescending(g => g.CreatedAt)
             .ThenByDescending(g => g.Id);
     }
 

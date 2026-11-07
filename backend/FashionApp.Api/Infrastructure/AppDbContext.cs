@@ -13,6 +13,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         optionsBuilder.AddInterceptors(SqlitePragmaInterceptor.Instance);
     }
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Every DateTimeOffset is stored as UTC ticks. This keeps timestamps sortable
+        // in SQLite (which cannot ORDER BY DateTimeOffset) and normalizes any write
+        // made with a non-UTC offset.
+        configurationBuilder
+            .Properties<DateTimeOffset>()
+            .HaveConversion<UtcTicksDateTimeOffsetConverter>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var garment = modelBuilder.Entity<Garment>();
@@ -37,6 +47,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         garment.HasIndex(g => g.IsArchived);
         garment.HasIndex(g => g.Category);
         garment.HasIndex(g => g.CreatedAt);
+        // Covers the full CreatedAt DESC, Id DESC ordering used by list pagination.
+        garment.HasIndex(g => new { g.CreatedAt, g.Id });
 
         var outfit = modelBuilder.Entity<Outfit>();
         outfit.ToTable("Outfits");
