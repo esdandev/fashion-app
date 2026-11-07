@@ -1,5 +1,8 @@
+using System.Text.RegularExpressions;
 using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Infrastructure;
+using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +14,16 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseSqlite(builder.Configuration.GetConnectionString("Default")));
+
+builder.Services.AddSingleton<IImageNormalizer, MagickImageNormalizer>();
+builder.Services.AddSingleton<FileStorage>();
+
+var aiProvider = builder.Configuration["Ai:Provider"];
+if (string.IsNullOrWhiteSpace(aiProvider)
+    || aiProvider.Equals("fake", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IGarmentAnalyzer, FakeGarmentAnalyzer>();
+}
 
 var app = builder.Build();
 
@@ -25,6 +38,20 @@ app.MapGet("/api/health", () => Results.Ok(new
 }));
 
 app.MapGarmentEndpoints();
+app.MapGarmentUploadEndpoint();
+
+app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, IConfiguration config) =>
+{
+    if (!Regex.IsMatch(fileName, @"^[a-f0-9]{64}(-thumb)?\.webp$"))
+        return Results.NotFound();
+
+    var path = Path.Combine(config["Storage:Root"] ?? "data/uploads", fileName);
+    if (!File.Exists(path))
+        return Results.NotFound();
+
+    ctx.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+    return Results.File(path, "image/webp", enableRangeProcessing: true);
+});
 
 using (var scope = app.Services.CreateScope())
 {
