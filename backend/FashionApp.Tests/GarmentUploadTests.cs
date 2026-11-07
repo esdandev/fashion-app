@@ -1,8 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Infrastructure.Storage;
+using ImageMagick;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 public sealed class GarmentUploadTests : IDisposable
@@ -14,14 +18,40 @@ public sealed class GarmentUploadTests : IDisposable
     [Fact]
     public async Task Upload_creates_garment_and_writes_two_files()
     {
+        // 2400x1200 forces both the 1600 px normalization and the 400 px thumb.
         var client = factory.CreateClient();
-        using var content = TestImages.Multipart("camisa.jpg", TestImages.CreateJpeg(800, 600));
+        using var content = TestImages.Multipart("camisa.jpg", TestImages.CreateJpeg(2400, 1200));
         var response = await client.PostAsync("/api/garments", content);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<CreateGarmentResponse>();
         Assert.False(body!.Deduplicated);
         Assert.Equal(2, Directory.GetFiles(factory.UploadsPath, "*.webp").Length);
+
+        var hash = Path.GetFileNameWithoutExtension(body.Garment.ImageUrl);
+        Assert.Matches("^[a-f0-9]{64}$", hash);
+        Assert.Equal($"{hash}-thumb.webp", Path.GetFileName(body.Garment.ThumbUrl));
+
+        var originalPath = Path.Combine(
+            factory.UploadsPath,
+            Path.GetFileName(body.Garment.ImageUrl));
+        var thumbPath = Path.Combine(
+            factory.UploadsPath,
+            Path.GetFileName(body.Garment.ThumbUrl));
+
+        var originalBytes = await File.ReadAllBytesAsync(originalPath);
+        Assert.Equal("RIFF", Encoding.ASCII.GetString(originalBytes, 0, 4));
+        Assert.Equal("WEBP", Encoding.ASCII.GetString(originalBytes, 8, 4));
+
+        using var original = new MagickImage(originalPath);
+        using var thumb = new MagickImage(thumbPath);
+
+        Assert.Equal(MagickFormat.WebP, original.Format);
+        Assert.Equal(MagickFormat.WebP, thumb.Format);
+        Assert.True(Math.Max(original.Width, original.Height) <= 1600);
+        Assert.True(Math.Max(thumb.Width, thumb.Height) <= 400);
+        Assert.Equal(1600u, original.Width);
+        Assert.Equal(800u, original.Height);
     }
 
     [Fact]
@@ -39,6 +69,39 @@ public sealed class GarmentUploadTests : IDisposable
         Assert.True(b.Deduplicated);
         Assert.Equal(2, Directory.GetFiles(factory.UploadsPath, "*.webp").Length);
     }
+
+    [Fact]
+    public async Task Uploading_same_pixels_with_different_metadata_deduplicates()
+    {
+        // Different EXIF artist and filename, identical pixels: only a hash over
+        // the normalized bytes (EXIF stripped) can deduplicate these two files.
+        var client = factory.CreateClient();
+        using var firstContent = TestImages.Multipart(
+            "original.jpg",
+            TestImages.CreateJpeg(800, 600, artist: "Camera A"));
+        using var secondContent = TestImages.Multipart(
+            "copia.jpg",
+            TestImages.CreateJpeg(800, 600, artist: "Camera B"));
+
+        var first = await client.PostAsync("/api/garments", firstContent);
+        var second = await client.PostAsync("/api/garments", secondContent);
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var a = await first.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+        var b = await second.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+        Assert.Equal(a!.Garment.Id, b!.Garment.Id);
+        Assert.True(b.Deduplicated);
+        Assert.Equal(2, Directory.GetFiles(factory.UploadsPath, "*.webp").Length);
+    }
+
+    [Fact]
+    public Task Upload_accepts_png_and_serves_it_as_webp() =>
+        AssertUploadServesWebpAsync("camisa.png", TestImages.CreatePng(800, 600));
+
+    [Fact]
+    public Task Upload_accepts_webp_and_serves_it_as_webp() =>
+        AssertUploadServesWebpAsync("camisa.webp", TestImages.CreateWebp(800, 600));
 
     [Fact]
     public async Task Corrupt_file_returns_400_and_persists_nothing()
@@ -131,4 +194,56 @@ public sealed class GarmentUploadTests : IDisposable
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task FileStorage_failed_publish_leaves_no_corrupt_file_or_temp_file()
+    {
+        var root = Path.Combine(factory.UploadsPath, "blocked");
+        Directory.CreateDirectory(root);
+        var normalized = await NormalizeAsync();
+
+        // A directory at the final name makes the atomic rename fail, which is
+        // the same failure shape as a disk-full or sharing violation.
+        var target = Path.Combine(root, $"{normalized.ContentHash}.webp");
+        Directory.CreateDirectory(target);
+
+        var storage = CreateStorage(root);
+        await Assert.ThrowsAsync<IOException>(() => storage.SaveAsync(normalized, default));
+
+        Assert.True(Directory.Exists(target));
+        Assert.Empty(Directory.GetFiles(root, "*.webp", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(root, "*.tmp", SearchOption.AllDirectories));
+    }
+
+    private async Task AssertUploadServesWebpAsync(string fileName, Stream image)
+    {
+        using (image)
+        using (var content = TestImages.Multipart(fileName, image))
+        {
+            var client = factory.CreateClient();
+            var response = await client.PostAsync("/api/garments", content);
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+
+            var media = await client.GetAsync(body!.Garment.ImageUrl);
+            Assert.Equal(HttpStatusCode.OK, media.StatusCode);
+            Assert.Equal("image/webp", media.Content.Headers.ContentType?.MediaType);
+
+            var bytes = await media.Content.ReadAsByteArrayAsync();
+            Assert.Equal("RIFF", Encoding.ASCII.GetString(bytes, 0, 4));
+            Assert.Equal("WEBP", Encoding.ASCII.GetString(bytes, 8, 4));
+        }
+    }
+
+    private static async Task<NormalizedImage> NormalizeAsync()
+    {
+        using var jpeg = TestImages.CreateJpeg(320, 240);
+        return await new MagickImageNormalizer().NormalizeAsync(jpeg, default);
+    }
+
+    private static FileStorage CreateStorage(string root) =>
+        new(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Root"] = root })
+            .Build());
 }
