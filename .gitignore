@@ -1,0 +1,16 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Node
+node_modules/
+dist/
+
+# Entorno y datos
+.env
+.env.*
+data/
+
+# Superpowers
+.superpowers/
