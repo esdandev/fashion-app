@@ -1,12 +1,11 @@
 using System.Net.Http.Headers;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ImageMagick;
+using ImageMagick.Drawing;
 
 /// <summary>
-/// EXIF orientation values used by the tests. ImageSharp no longer ships this
-/// enum, so the two values the suite needs live here.
+/// EXIF orientation values used by the tests. Magick.NET exposes the same
+/// values through its <see cref="Orientation"/> enum, but the tests keep a
+/// minimal local enum so the fixture contract stays explicit.
 /// </summary>
 public enum ExifOrientation : ushort
 {
@@ -26,25 +25,23 @@ public static class TestImages
         int height,
         ExifOrientation orientation = ExifOrientation.Normal)
     {
-        using var image = new Image<Rgba32>(width, height);
-        image.Mutate(x => x.BackgroundColor(Color.HotPink));
+        using var image = new MagickImage(MagickColors.HotPink, (uint)width, (uint)height);
+        image.Draw(new Drawables()
+            .FillColor(MagickColors.Navy)
+            .Rectangle(0, 0, width / 4, height / 4));
 
-        var rectWidth = Math.Max(1, width / 4);
-        var rectHeight = Math.Max(1, height / 4);
-        for (var y = 0; y < rectHeight; y++)
-        {
-            for (var x = 0; x < rectWidth; x++)
-            {
-                image[x, y] = Color.Navy.ToPixel<Rgba32>();
-            }
-        }
-
-        image.Metadata.ExifProfile = new ExifProfile();
-        image.Metadata.ExifProfile.SetValue(ExifTag.Orientation, (ushort)orientation);
-        image.Metadata.ExifProfile.SetValue(ExifTag.Artist, "TestImages");
+        // ImageMagick keeps the orientation as an image attribute as well as
+        // inside the EXIF profile; both must agree for the tag to survive a
+        // JPEG round trip.
+        image.Orientation = (Orientation)(ushort)orientation;
+        var exif = new ExifProfile();
+        exif.SetValue(ExifTag.Orientation, (ushort)orientation);
+        exif.SetValue(ExifTag.Artist, "TestImages");
+        image.SetProfile(exif);
 
         var stream = new MemoryStream();
-        image.SaveAsJpeg(stream);
+        image.Format = MagickFormat.Jpeg;
+        image.Write(stream);
         stream.Position = 0;
         return stream;
     }
