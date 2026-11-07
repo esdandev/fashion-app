@@ -525,7 +525,7 @@ public async Task Corrupt_file_returns_400_and_persists_nothing()
 {
     var client = factory.CreateClient();
     var response = await client.PostAsync("/api/garments",
-        TestImages.Multipart("x.jpg", new byte[] { 1, 2, 3 }));
+        TestImages.Multipart("x.jpg", new byte[] { 0xFF, 0xD8, 0xFF, 0x00, 0x01 }));
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     var list = await factory.CreateClient().GetFromJsonAsync<GarmentListResponse>("/api/garments");
     Assert.Empty(list!.Items);
@@ -872,7 +872,7 @@ git commit -m "feat: add token auth, demo write guard, AI quota and seeded wardr
 pnpm create vite frontend --template react-ts
 cd frontend
 pnpm add @tanstack/react-query react-router-dom
-pnpm add -D tailwindcss @tailwindcss/vite vitest @testing-library/react @testing-library/jest-dom jsdom
+pnpm add -D tailwindcss @tailwindcss/vite vitest @testing-library/react @testing-library/jest-dom jsdom @playwright/test
 ```
 
 Configurar Tailwind 4 en `vite.config.ts` con `@tailwindcss/vite` y `@import "tailwindcss";` en `index.css`.
@@ -920,7 +920,7 @@ git commit -m "feat: add responsive wardrobe grid with filters"
 ### Task 10: Alta desde la UI, E2E y cierre de fase
 
 **Files:**
-- Create: `frontend/src/features/wardrobe/UploadGarmentDialog.tsx`, `frontend/src/features/wardrobe/GarmentForm.tsx`, `frontend/tests/wardrobe.spec.ts`, `frontend/tests/fixtures/camisa.jpg`, `README.md`
+- Create: `frontend/src/features/wardrobe/UploadGarmentDialog.tsx`, `frontend/src/features/wardrobe/GarmentForm.tsx`, `frontend/tests/wardrobe.spec.ts`, `frontend/tests/fixtures/camisa.jpg`, `frontend/playwright.config.ts`, `README.md`
 - Modify: `frontend/src/features/wardrobe/WardrobePage.tsx`, `backend/FashionApp.Api/Program.cs`
 
 **Interfaces:**
@@ -928,6 +928,8 @@ git commit -m "feat: add responsive wardrobe grid with filters"
 - Produces: flujo completo subir → previsualizar → confirmar → ver en grilla; comando documentado para correr backend y frontend; README con decisiones y capturas pendientes.
 
 - [ ] **Step 1: Implementar el diálogo de alta**
+
+Antes de empezar, crear `frontend/playwright.config.ts` con `testDir: './tests'`, `use.baseURL = 'http://localhost:5173'` y `webServer` apuntando a `pnpm dev` (sin backend automático; el backend se levanta en modo fake según el paso 4).
 
 Input `accept="image/jpeg,image/png,image/webp"`, preview local con `URL.createObjectURL`, validación de 10 MB en cliente con mensaje en español, spinner con texto "Analizando prenda…", y formulario de confirmación con los campos del análisis (nombre, categoría, color, temporada, formalidad, etiquetas). El botón "Guardar" hace `POST /api/garments`; el botón "Reintentar" hace `POST /{id}/reanalyze` y vuelve a llenar el formulario sin guardar.
 
@@ -939,7 +941,7 @@ test('sube una prenda y la ve en el guardarropa', async ({ page }) => {
   await page.goto('/guardarropa')
   await page.getByRole('button', { name: 'Subir prenda' }).click()
   await page.setInputFiles('input[type=file]', 'tests/fixtures/camisa.jpg')
-  await expect(page.getByText('Analizando prenda…')).toBeVisible()
+  await expect(page.getByLabel('Nombre')).toBeVisible()
   await page.getByLabel('Nombre').fill('Camisa de lino')
   await page.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByText('Camisa de lino')).toBeVisible()
