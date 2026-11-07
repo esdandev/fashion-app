@@ -8,6 +8,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Garment> Garments => Set<Garment>();
     public DbSet<Outfit> Outfits => Set<Outfit>();
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.AddInterceptors(SqlitePragmaInterceptor.Instance);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var garment = modelBuilder.Entity<Garment>();
