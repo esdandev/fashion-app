@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-display: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+}
+
+@layer base {
+  html {
+    @apply bg-stone-50 text-stone-900 antialiased;
+  }
+
+  body {
+    @apply min-h-svh bg-stone-50;
+  }
+
+  ::selection {
+    @apply bg-stone-900 text-stone-50;
+  }
+}
