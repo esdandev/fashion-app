@@ -41,6 +41,7 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddScoped<IAiQuota, AiQuotaService>();
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RuleBasedOutfitSuggester>();
 builder.Services.AddScoped<IOutfitSuggestionService, OutfitSuggestionService>();
 
@@ -104,6 +105,8 @@ else
     throw new InvalidOperationException(
         $"Proveedor de feeds desconocido '{digestProvider}'. Usa 'rss' o 'fake'.");
 }
+
+builder.Services.AddScoped<IDigestGenerator, DigestGenerator>();
 
 var app = builder.Build();
 
