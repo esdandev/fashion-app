@@ -48,3 +48,29 @@ describe('api.getAllGarments', () => {
     expect(garments).toHaveLength(5)
   })
 })
+
+describe('ApiError Retry-After', () => {
+  it('exposes the quota reset in seconds from a 429 response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: 'Se alcanzó el límite de sugerencias de IA para hoy (UTC).',
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/problem+json',
+            'Retry-After': '120',
+          },
+        },
+      ),
+    )
+
+    await expect(
+      api.suggestOutfits({ weather: 'templado' }),
+    ).rejects.toMatchObject({
+      status: 429,
+      retryAfterSeconds: 120,
+    })
+  })
+})

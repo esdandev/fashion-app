@@ -61,6 +61,53 @@ public sealed class OutfitEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_accepts_ai_source_and_rationale_for_a_saved_proposal()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/outfits",
+            new CreateOutfitRequest(
+                "Propuesta de dos piezas",
+                "trabajo",
+                [top.Id, bottom.Id, shoes.Id],
+                "ai",
+                "  Ideal para trabajar con clima templado.  "));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var dto = await response.Content.ReadFromJsonAsync<OutfitDto>();
+        Assert.NotNull(dto);
+        Assert.Equal("ai", dto!.Source);
+        Assert.Equal("Ideal para trabajar con clima templado.", dto.Rationale);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var saved = await db.Outfits.AsNoTracking().SingleAsync();
+        Assert.Equal(OutfitSource.Ai, saved.Source);
+        Assert.Equal("Ideal para trabajar con clima templado.", saved.Rationale);
+    }
+
+    [Fact]
+    public async Task Create_rejects_an_unknown_source()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/outfits",
+            new CreateOutfitRequest(
+                "Look", null, [top.Id, bottom.Id, shoes.Id], "otra"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("La fuente debe ser 'ai' o 'manual'.", await GetProblemDetailAsync(response));
+    }
+
+    [Fact]
     public async Task Create_rejects_invalid_compositions_with_400_and_does_not_persist()
     {
         var top = TestData.NewGarment("Camisa", GarmentCategory.Top);

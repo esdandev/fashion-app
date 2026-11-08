@@ -16,9 +16,15 @@ public sealed record OutfitDto(
 
 /// <summary>
 /// Manual outfit creation. <c>GarmentIds</c> is kept in request order: that
-/// order becomes <c>OutfitItem.SortOrder</c>.
+/// order becomes <c>OutfitItem.SortOrder</c>. <c>Source</c> defaults to
+/// <c>manual</c>; saving an AI proposal sends <c>ai</c> plus its rationale.
 /// </summary>
-public sealed record CreateOutfitRequest(string Name, string? Occasion, Guid[] GarmentIds);
+public sealed record CreateOutfitRequest(
+    string Name,
+    string? Occasion,
+    Guid[] GarmentIds,
+    string? Source = null,
+    string? Rationale = null);
 
 /// <summary>
 /// Partial update. A <c>null</c> field means "leave unchanged"; an empty

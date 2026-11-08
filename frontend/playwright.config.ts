@@ -12,6 +12,10 @@ const apiURL = 'http://localhost:5210'
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
+  // Every spec file shares the same isolated API process and SQLite database,
+  // so files must run one at a time: wardrobe counts and outfit seeds would
+  // otherwise race against each other.
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: [['list']],

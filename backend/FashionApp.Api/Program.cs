@@ -13,7 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(builder.Configuration["Cors:AllowedOrigin"] ?? "http://localhost:5173")
-     .AllowAnyHeader().AllowAnyMethod()));
+     .AllowAnyHeader().AllowAnyMethod()
+     // The UI shows the quota reset in minutes, so the browser must be able to
+     // read Retry-After on a 429 cross-origin response.
+     .WithExposedHeaders("Retry-After")));
 
 // Resolved through DI (not read eagerly here) so WebApplicationFactory's
 // in-memory overrides are already applied when the paths are first used.

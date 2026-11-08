@@ -96,6 +96,65 @@ export function canSaveOutfit(
     : validateOutfitGarments(selection as readonly OutfitGarment[]).canSave
 }
 
+function uniqueFormalities(
+  wardrobe: readonly Garment[],
+  category: GarmentCategory,
+): number[] {
+  return [
+    ...new Set(
+      wardrobe
+        .filter((garment) => garment.category === category)
+        .map((garment) => garment.formality),
+    ),
+  ]
+}
+
+/**
+ * True when the wardrobe contains at least one minimal valid combination.
+ * Optional layers never fix an invalid base, so checking dress+shoes and
+ * top+bottom+shoes is enough to decide whether suggesting is worth a request.
+ */
+export function hasPossibleOutfit(wardrobe: readonly Garment[]): boolean {
+  const tops = uniqueFormalities(wardrobe, 'top')
+  const bottoms = uniqueFormalities(wardrobe, 'bottom')
+  const dresses = uniqueFormalities(wardrobe, 'dress')
+  const shoes = uniqueFormalities(wardrobe, 'shoes')
+
+  const isPossible = (garments: OutfitGarment[]) =>
+    validateOutfitGarments(garments).canSave
+
+  for (const dress of dresses) {
+    for (const shoe of shoes) {
+      if (
+        isPossible([
+          { category: 'dress', formality: dress },
+          { category: 'shoes', formality: shoe },
+        ])
+      ) {
+        return true
+      }
+    }
+  }
+
+  for (const top of tops) {
+    for (const bottom of bottoms) {
+      for (const shoe of shoes) {
+        if (
+          isPossible([
+            { category: 'top', formality: top },
+            { category: 'bottom', formality: bottom },
+            { category: 'shoes', formality: shoe },
+          ])
+        ) {
+          return true
+        }
+      }
+    }
+  }
+
+  return false
+}
+
 function invalid(message: string): OutfitValidation {
   return { canSave: false, message }
 }

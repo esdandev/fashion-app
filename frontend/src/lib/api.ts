@@ -24,12 +24,20 @@ const TOKEN_STORAGE_KEY = 'app_token'
 export class ApiError extends Error {
   readonly status: number
   readonly problemDetails?: ProblemDetails
+  /** Seconds from the `Retry-After` header, when the API sends one. */
+  readonly retryAfterSeconds?: number
 
-  constructor(message: string, status: number, problemDetails?: ProblemDetails) {
+  constructor(
+    message: string,
+    status: number,
+    problemDetails?: ProblemDetails,
+    retryAfterSeconds?: number,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.problemDetails = problemDetails
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -77,7 +85,19 @@ async function parseResponse<T>(response: Response): Promise<T> {
     problem?.title ??
     fallbackMessage(response.status)
 
-  throw new ApiError(message, response.status, problem)
+  // The quota endpoints answer 429 with Retry-After in seconds. CORS exposes
+  // that header from the API, so the UI can tell the user how long to wait.
+  const retryAfter = response.headers.get('Retry-After')
+  const retryAfterSeconds = retryAfter ? Number.parseInt(retryAfter, 10) : NaN
+
+  throw new ApiError(
+    message,
+    response.status,
+    problem,
+    Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? retryAfterSeconds
+      : undefined,
+  )
 }
 
 function fallbackMessage(status: number): string {

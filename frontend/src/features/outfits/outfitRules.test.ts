@@ -2,12 +2,33 @@ import { describe, expect, it } from 'vitest'
 import {
   OUTFIT_MESSAGES,
   canSaveOutfit,
+  hasPossibleOutfit,
   validateOutfitGarments,
 } from './outfitRules'
-import type { GarmentCategory } from '../../lib/types'
+import type { Garment, GarmentCategory } from '../../lib/types'
 
 function garment(category: GarmentCategory, formality: number) {
   return { category, formality }
+}
+
+function fullGarment(
+  id: string,
+  category: GarmentCategory,
+  formality: number,
+): Garment {
+  return {
+    id,
+    name: id,
+    category,
+    colorName: 'negro',
+    colorHex: '#111111',
+    formality,
+    confidence: 0.9,
+    seasons: ['spring'],
+    styleTags: ['casual'],
+    imageUrl: `/media/${id}.webp`,
+    thumbUrl: `/media/${id}-thumb.webp`,
+  }
 }
 
 describe('canSaveOutfit', () => {
@@ -50,5 +71,41 @@ describe('canSaveOutfit', () => {
     expect(validation.message).toBe(
       'La formalidad de las prendas no puede variar más de 2 puntos.',
     )
+  })
+})
+
+describe('hasPossibleOutfit', () => {
+  it('finds a combinational outfit only when categories and formality fit', () => {
+    expect(hasPossibleOutfit([])).toBe(false)
+    expect(
+      hasPossibleOutfit([
+        fullGarment('camisa', 'top', 3),
+        fullGarment('jean', 'bottom', 3),
+      ]),
+    ).toBe(false)
+    expect(
+      hasPossibleOutfit([
+        fullGarment('camisa', 'top', 1),
+        fullGarment('jean', 'bottom', 4),
+        fullGarment('zapatillas', 'shoes', 3),
+      ]),
+    ).toBe(false)
+    expect(
+      hasPossibleOutfit([
+        fullGarment('camisa', 'top', 3),
+        fullGarment('jean', 'bottom', 4),
+        fullGarment('zapatillas', 'shoes', 2),
+      ]),
+    ).toBe(true)
+  })
+
+  it('accepts a dress with shoes and ignores unrelated accessories', () => {
+    expect(
+      hasPossibleOutfit([
+        fullGarment('vestido', 'dress', 4),
+        fullGarment('zapatillas', 'shoes', 4),
+        fullGarment('bolso', 'bag', 1),
+      ]),
+    ).toBe(true)
   })
 })

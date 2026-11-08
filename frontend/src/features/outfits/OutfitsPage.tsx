@@ -5,6 +5,7 @@ import { ApiError, api } from '../../lib/api'
 import type { Outfit } from '../../lib/types'
 import { OutfitCard, OutfitCardSkeleton } from './OutfitCard'
 import { OutfitEditor } from './OutfitEditor'
+import { SuggestionPanel } from './SuggestionPanel'
 
 function CollageIcon({ className }: { className?: string }) {
   return (
@@ -28,6 +29,7 @@ function CollageIcon({ className }: { className?: string }) {
 
 export default function OutfitsPage() {
   const [editor, setEditor] = useState<{ outfit?: Outfit } | null>(null)
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   const outfitsQuery = useQuery({
     queryKey: ['outfits'],
@@ -68,15 +70,34 @@ export default function OutfitsPage() {
           )}
         </div>
         {!isDemo && (
-          <button
-            type="button"
-            onClick={() => setEditor({})}
-            className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
-          >
-            Crear outfit
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEditor(null)
+                setShowSuggestions(true)
+              }}
+              className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              Sugerir outfits
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuggestions(false)
+                setEditor({})
+              }}
+              className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              Crear outfit
+            </button>
+          </div>
         )}
       </div>
+
+      {showSuggestions && (
+        <SuggestionPanel onClose={() => setShowSuggestions(false)} />
+      )}
 
       {editor && (
         <OutfitEditor

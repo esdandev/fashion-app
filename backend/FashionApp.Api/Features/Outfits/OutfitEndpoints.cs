@@ -11,6 +11,7 @@ public static class OutfitEndpoints
 {
     private const int MaxNameLength = 120;
     private const int MaxOccasionLength = 60;
+    private const int MaxRationaleLength = 600;
 
     public static IEndpointRouteBuilder MapOutfitEndpoints(this IEndpointRouteBuilder app)
     {
@@ -70,6 +71,14 @@ public static class OutfitEndpoints
             if (occasionError is not null)
                 return BadRequest(occasionError);
 
+            var (source, sourceError) = ParseSource(request.Source);
+            if (sourceError is not null)
+                return BadRequest(sourceError);
+
+            var rationaleError = ValidateRationale(request.Rationale);
+            if (rationaleError is not null)
+                return BadRequest(rationaleError);
+
             var garmentIds = request.GarmentIds ?? [];
             if (HasDuplicates(garmentIds))
                 return BadRequest(OutfitRules.DuplicateGarment);
@@ -88,7 +97,8 @@ public static class OutfitEndpoints
                 Id = Guid.NewGuid(),
                 Name = request.Name.Trim(),
                 Occasion = NormalizeOptionalText(request.Occasion),
-                Source = OutfitSource.Manual,
+                Source = source,
+                Rationale = NormalizeOptionalText(request.Rationale),
                 IsFavorite = false,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -311,6 +321,29 @@ public static class OutfitEndpoints
         occasion is not null && occasion.Trim().Length > MaxOccasionLength
             ? $"La ocasión no puede superar los {MaxOccasionLength} caracteres."
             : null;
+
+    private static string? ValidateRationale(string? rationale) =>
+        rationale is not null && rationale.Trim().Length > MaxRationaleLength
+            ? $"La razón no puede superar los {MaxRationaleLength} caracteres."
+            : null;
+
+    /// <summary>
+    /// Only the two values stored by the model are accepted. An omitted source
+    /// keeps the manual default, so older clients keep working unchanged.
+    /// </summary>
+    private static (OutfitSource Source, string? Error) ParseSource(string? source)
+    {
+        var value = source?.Trim();
+        if (string.IsNullOrEmpty(value))
+            return (OutfitSource.Manual, null);
+
+        return value.ToLowerInvariant() switch
+        {
+            "ai" => (OutfitSource.Ai, null),
+            "manual" => (OutfitSource.Manual, null),
+            _ => (OutfitSource.Manual, "La fuente debe ser 'ai' o 'manual'.")
+        };
+    }
 
     private static string? NormalizeOptionalText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -2,12 +2,15 @@
 
 App web personal de moda: guardarropa, outfits y resumen diario.
 
-La **Fase 0–1** quedó cerrada: se sube una foto, se normaliza y analiza con IA,
+La **Fase 0–2** quedó cerrada: se sube una foto, se normaliza y analiza con IA,
 se confirman o corrigen los atributos y la prenda aparece en la grilla del
-guardarropa con filtros por categoría, color y temporada.
+guardarropa con filtros por categoría, color y temporada. Sobre ese guardarropa
+se sugieren outfits por ocasión y clima, se guardan como collage y también se
+arman o editan a mano.
 
 - Diseño: `docs/Fashion App.md`
 - Plan de la Fase 0–1: `docs/plan-fase-0-1.md`
+- Plan de la Fase 2: `docs/plan-fase-2.md`
 - Bitácora: `docs/Fashion App.md` → sección **Bitácora**
 
 ## Stack
@@ -112,11 +115,17 @@ Antes de correrlo, detené cualquier backend o Vite propio en esos puertos: el
 runner no reutiliza servidores existentes para no mutar datos reales.
 
 El backend de test arranca con `Ai__Provider=fake`, `Demo__Enabled=false`,
-`App__Token` vacío y rutas de almacenamiento propias. El E2E cubre el flujo
-crítico: subir foto → ver la confirmación → editar color/nombre → guardar → ver
-la prenda en la grilla, además del spinner, el reanálisis sin guardar, la
-cancelación sin fila nueva, el rechazo de archivos de más de 10 MB y el modo
-demo de solo lectura.
+`App__Token` vacío y rutas de almacenamiento propias. El E2E cubre dos flujos
+críticos. **Guardarropa:** subir foto → ver la confirmación → editar color/nombre
+→ guardar → ver la prenda en la grilla, además del spinner, el reanálisis sin
+guardar, la cancelación sin fila nueva, el rechazo de archivos de más de 10 MB y
+el modo demo de solo lectura. **Outfits:** un helper siembra tres prendas
+(análisis multipart + confirmación JSON) para no depender del diálogo de alta,
+luego sugiere un outfit, lo guarda y verifica la tarjeta con `source=ai`; el
+segundo test crea un outfit a mano, edita el nombre y comprueba el cambio. Los
+fixtures de outfits (`camisa-lino.webp`, `pantalon-beige.webp`,
+`zapatillas-blancas.webp`) son copias de los assets de demo. Como todos los
+specs comparten la misma API y base, el runner usa un solo worker.
 
 ## Variables de entorno
 
@@ -134,6 +143,7 @@ empezar con `VITE_`.
 | `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER=gemini`. |
 | `AI__MODEL` | `gemini-2.0-flash` | Modelo usado por el analizador real. |
 | `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA permitidos por día (calendario UTC). |
+| `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits permitidas por día (calendario UTC). Comparte el contador atómico en SQLite. |
 | `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. Si se define, se usa tal cual. |
 | `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes para CI/tests. |
 | `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS. |
@@ -182,13 +192,38 @@ dotnet run --project backend/FashionApp.Api
 | PATCH | `/api/garments/{id}` | Corrige nombre, categoría, color (`colorName`/`colorHex`), formalidad, temporadas y etiquetas. |
 | DELETE | `/api/garments/{id}` | Archiva (baja lógica; no borra archivos). |
 | POST | `/api/garments/{id}/reanalyze` | Vuelve a analizar y devuelve una propuesta **sin** sobrescribir la prenda. |
+| GET | `/api/outfits` | Outfits guardados con sus prendas, orden `favorito` y luego `creado` descendente. Incluye prendas archivadas para conservar el collage. |
+| POST | `/api/outfits` | Crea un outfit manual validado. Acepta `source` (`manual` por defecto o `ai`) y `rationale` opcional. |
+| PATCH | `/api/outfits/{id}` | Edita nombre, ocasión, favorito o reemplaza las prendas (revalida las reglas). |
+| DELETE | `/api/outfits/{id}` | Elimina el outfit y sus ítems; nunca borra prendas. |
+| POST | `/api/outfits/suggest` | Sugerencias por `occasion` y `weather` (`frio`, `templado`, `calor`). Devuelve borradores sin persistir. Consume cuota `suggestion`. |
 | GET | `/media/{hash}.webp` | Imagen normalizada, con caché inmutable. |
 | GET | `/media/{hash}-thumb.webp` | Miniatura de 400 px. |
 
 Los errores usan `ProblemDetails` (RFC 7807) con mensajes en español. Cuando la
 IA responde `{"error":"no_garment"}`, los endpoints de análisis devuelven `422`
-("No se detectó una prenda") en vez de guardar una prenda vacía. Los endpoints
-de digest y outfits todavía no están implementados (Fases 2–3).
+("No se detectó una prenda") en vez de guardar una prenda vacía. Los errores de
+composición de outfits devuelven `400`, una prenda inexistente o archivada
+devuelve `409` y la cuota agotada devuelve `429` con `Retry-After` (expuesto por
+CORS para que la UI lo muestre en minutos). Los endpoints de digest todavía no
+están implementados (Fase 3).
+
+### Flujo de sugerencias
+
+1. `GET /api/garments` (paginado por cursor) llena el guardarropa del panel. Si
+   no existe al menos un conjunto válido —`top` + `bottom` + `shoes`, o `dress`
+   + `shoes`, con formalidad dentro de 2 puntos— el formulario queda deshabilitado
+   y explica el motivo.
+2. `POST /api/outfits/suggest` devuelve hasta tres borradores con `name`,
+   `garmentIds`, `occasion` y `rationale`. Nada se persiste.
+3. Cada tarjeta muestra el collage con las fotos reales y la razón de la
+   propuesta. "Guardar" llama a `POST /api/outfits` con `source=ai` y el
+   `rationale`; el listado se invalida y la tarjeta aparece con la insignia IA.
+4. Una respuesta vacía muestra "sin resultados"; los errores se pueden
+   reintentar y el `429` informa cuántos minutos faltan para el reinicio UTC.
+5. El servidor valida toda propuesta contra prendas activas antes de devolverla:
+   ids inventados o composiciones inválidas se descartan y, si no queda ninguna,
+   se usa el generador por reglas.
 
 ## Decisiones de la Fase 0–1
 
@@ -229,6 +264,24 @@ de digest y outfits todavía no están implementados (Fases 2–3).
   `React.lazy` para no cargar el guardarropa en la home.
 - **IA fake en tests.** Ni los tests de backend ni el E2E llaman a un proveedor
   real.
+
+## Decisiones de la Fase 2
+
+- **Outfits como collage de prendas reales.** `Outfit` guarda ítems con `Layer`
+  y `SortOrder`; el listado ordena por `IsFavorite` y `CreatedAt` y conserva las
+  fotos incluso si una prenda se archiva después.
+- **Sugerencias sin persistir.** `POST /api/outfits/suggest` devuelve borradores;
+  solo "Guardar" crea el outfit. `source` se persiste en minúsculas (`ai` o
+  `manual`), por eso el DTO expone el mismo vocabulario.
+- **Validación en dos capas.** La UI deshabilita Guardar con reglas locales
+  (composición + formalidad); el servidor revalida siempre y descarta propuestas
+  de IA con ids inventados o composiciones inválidas antes de responder.
+- **Cuota y caché de sugerencias.** La caché en memoria dura 10 minutos por
+  `occasion|weather|count|maxUpdatedAt` y no consume cuota; un miss consume
+  `Ai:DailySuggestionLimit` (default 20) y responde `429` con `Retry-After`.
+- **Fallback determinista.** Si el proveedor falla o devuelve propuestas
+  inválidas, se reintenta una vez y luego se usa el generador por reglas. Los
+  tests usan `Ai:Provider=fake` para que el E2E sea determinista.
 
 ## Rendimiento
 

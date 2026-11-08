@@ -139,6 +139,10 @@ export interface CreateOutfitRequest {
   name: string
   occasion?: string | null
   garmentIds: string[]
+  /** Defaults to `manual` on the API. Saving an AI proposal sends `ai`. */
+  source?: OutfitSource
+  /** Optional explanation kept with an AI-saved outfit. */
+  rationale?: string | null
 }
 
 /** Mirrors `PatchOutfitRequest`. Only sent fields are changed. */
