@@ -27,22 +27,9 @@ public sealed class DigestGeneratorTests : IDisposable
         foreach (var context in _contexts)
             context.Dispose();
 
-        // SQLite pools connections even after the context is disposed; release
-        // the file handle before deleting the temporary database.
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-
-        var directory = Path.GetDirectoryName(_dbPath);
-        if (directory is not null && Directory.Exists(directory))
-        {
-            try
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-            catch (IOException)
-            {
-                // A leftover temp database must never fail the test.
-            }
-        }
+        // Deliberately do not call SqliteConnection.ClearAllPools(): it is a
+        // process-wide side effect and xUnit runs other test classes in
+        // parallel. The temporary database directory is left to the OS.
     }
 
     [Fact]
@@ -159,6 +146,23 @@ public sealed class DigestGeneratorTests : IDisposable
         Assert.NotNull(digest);
         Assert.Equal(600, digest!.Summary.Length);
         Assert.Equal(600, Assert.Single(digest.Items).Summary.Length);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_propagates_and_persists_nothing()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var generator = Build(
+            feeds: [Entry("Nota", "https://example.com/a")],
+            drafts: 1);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => generator.GenerateAsync(cts.Token));
+
+        await using var db = NewDb();
+        Assert.Empty(await db.Digests.ToListAsync());
+        Assert.Empty(await db.DigestItems.ToListAsync());
     }
 
     private DigestGenerator Build(

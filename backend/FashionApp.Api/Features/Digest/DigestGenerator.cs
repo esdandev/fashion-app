@@ -121,7 +121,14 @@ public sealed class DigestGenerator(
         {
             return await fetcher.FetchAsync(source, timeout.Token);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Caller cancellation (host shutdown, client disconnect) is not a
+            // feed failure: propagate it so the run aborts before persisting
+            // or calling the summarizer with a canceled token.
+            throw;
+        }
+        catch (OperationCanceledException)
         {
             logger.LogWarning(
                 "El feed {Source} no respondió en {Seconds} s; se omite.",
