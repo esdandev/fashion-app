@@ -51,6 +51,13 @@ export default function WardrobePage() {
     placeholderData: keepPreviousData,
   })
 
+  const configQuery = useQuery({
+    queryKey: ['config'],
+    queryFn: () => api.getConfig(),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const isDemo = configQuery.data?.demo === true
   const garments = garmentsQuery.data?.items ?? []
   const hasMore = Boolean(garmentsQuery.data?.nextCursor)
   const isInitialLoading = garmentsQuery.isPending
@@ -69,8 +76,16 @@ export default function WardrobePage() {
           <p className="mt-1 text-sm text-stone-500">
             Todo lo que tenés, a mano y ordenado por categoría y temporada.
           </p>
+          {isDemo && (
+            <p
+              role="note"
+              className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"
+            >
+              La demo pública es de solo lectura: no se pueden subir prendas.
+            </p>
+          )}
         </div>
-        <UploadButton onClick={() => setIsUploadOpen(true)} />
+        {!isDemo && <UploadButton onClick={() => setIsUploadOpen(true)} />}
       </div>
 
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -159,12 +174,15 @@ export default function WardrobePage() {
               Tu guardarropa está vacío
             </h2>
             <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
-              Subí la foto de tu primera prenda y la IA se encarga de completar
-              categoría, color y temporada.
+              {isDemo
+                ? 'La demo pública es de solo lectura: podés explorar las prendas de ejemplo, pero no subir nuevas.'
+                : 'Subí la foto de tu primera prenda y la IA se encarga de completar categoría, color y temporada.'}
             </p>
-            <div className="mt-4 flex justify-center">
-              <UploadButton onClick={() => setIsUploadOpen(true)} />
-            </div>
+            {!isDemo && (
+              <div className="mt-4 flex justify-center">
+                <UploadButton onClick={() => setIsUploadOpen(true)} />
+              </div>
+            )}
           </div>
         ))}
 

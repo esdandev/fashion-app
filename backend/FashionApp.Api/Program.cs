@@ -71,8 +71,15 @@ app.MapGet("/api/health", () => Results.Ok(new
     utc = DateTimeOffset.UtcNow.ToString("O")
 }));
 
+app.MapGet("/api/config", (IConfiguration configuration) => Results.Ok(new
+{
+    demo = configuration.GetValue("Demo:Enabled", false)
+}));
+
 app.MapGarmentEndpoints();
 app.MapGarmentUploadEndpoint();
+app.MapGarmentAnalyzeEndpoint();
+app.MapGarmentConfirmEndpoint();
 app.MapGarmentReanalyzeEndpoint();
 
 app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, IConfiguration config) =>

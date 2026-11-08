@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ChangeEvent, MouseEvent } from 'react'
 import { ApiError, api } from '../../lib/api'
-import type { Garment, GarmentAnalysisProposal } from '../../lib/types'
+import type { GarmentAnalysisProposal } from '../../lib/types'
 import { GarmentForm } from './GarmentForm'
 import {
-  garmentFormValuesFromGarment,
+  EMPTY_GARMENT_FORM_VALUES,
   garmentFormValuesFromProposal,
+  toConfirmRequest,
   toPatchRequest,
   validateGarmentFile,
 } from './garmentUpload'
@@ -39,7 +40,11 @@ export function UploadGarmentDialog({
   const [phase, setPhase] = useState<Phase>('idle')
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [garment, setGarment] = useState<Garment | null>(null)
+  const [contentHash, setContentHash] = useState<string | null>(null)
+  const [analysis, setAnalysis] = useState<GarmentAnalysisProposal | null>(null)
+  const [existingGarmentId, setExistingGarmentId] = useState<string | null>(
+    null,
+  )
   const [values, setValues] = useState<GarmentFormValues | null>(null)
   const [confidence, setConfidence] = useState<number | undefined>(undefined)
   const [deduplicated, setDeduplicated] = useState(false)
@@ -79,15 +84,22 @@ export function UploadGarmentDialog({
     setDeduplicated(false)
 
     try {
-      const response = await api.postGarment(selected)
+      const response = await api.analyzeGarment(selected)
       if (requestId !== requestRef.current) {
         return
       }
 
-      setGarment(response.garment)
-      setValues(garmentFormValuesFromGarment(response.garment))
-      setConfidence(response.garment.confidence)
-      setDeduplicated(response.deduplicated)
+      setContentHash(response.contentHash)
+      setAnalysis(response.analysis)
+      setExistingGarmentId(response.existingGarmentId)
+      setValues(
+        garmentFormValuesFromProposal(
+          response.analysis,
+          EMPTY_GARMENT_FORM_VALUES,
+        ),
+      )
+      setConfidence(response.analysis.confidence)
+      setDeduplicated(response.existingGarmentId !== null)
       setPhase('form')
     } catch (caught) {
       if (requestId !== requestRef.current) {
@@ -112,7 +124,9 @@ export function UploadGarmentDialog({
       return
     }
 
-    setGarment(null)
+    setContentHash(null)
+    setAnalysis(null)
+    setExistingGarmentId(null)
     setValues(null)
     setDeduplicated(false)
     setError(null)
@@ -132,7 +146,7 @@ export function UploadGarmentDialog({
   }
 
   async function handleSave() {
-    if (!values || !garment) {
+    if (!values || !contentHash) {
       return
     }
 
@@ -146,12 +160,25 @@ export function UploadGarmentDialog({
     setError(null)
 
     try {
-      const saved = await api.patchGarment(garment.id, toPatchRequest(values))
+      if (existingGarmentId) {
+        // The photo is already in the wardrobe: keep edits working through the
+        // correction endpoint instead of creating (or silently deduplicating).
+        await api.patchGarment(existingGarmentId, toPatchRequest(values))
+      } else {
+        await api.confirmGarment(
+          toConfirmRequest(values, contentHash, {
+            confidence,
+            subcategory: analysis?.subcategory,
+            pattern: analysis?.pattern,
+            material: analysis?.material,
+          }),
+        )
+      }
+
       if (requestId !== requestRef.current) {
         return
       }
 
-      setGarment(saved)
       onSaved()
     } catch (caught) {
       if (requestId !== requestRef.current) {
@@ -173,43 +200,47 @@ export function UploadGarmentDialog({
       return
     }
 
-    if (!garment) {
-      if (file) {
-        await analyze(file)
+    if (existingGarmentId) {
+      const requestId = ++requestRef.current
+      setPhase('reanalyzing')
+      setError(null)
+
+      try {
+        const proposal: GarmentAnalysisProposal =
+          await api.reanalyze(existingGarmentId)
+        if (requestId !== requestRef.current) {
+          return
+        }
+
+        setAnalysis(proposal)
+        setValues((current) =>
+          garmentFormValuesFromProposal(
+            proposal,
+            current ?? EMPTY_GARMENT_FORM_VALUES,
+          ),
+        )
+        setConfidence(proposal.confidence)
+        // Deliberately no PATCH here: the proposal only refills the form.
+        setPhase('form')
+      } catch (caught) {
+        if (requestId !== requestRef.current) {
+          return
+        }
+
+        setError(
+          friendlyError(
+            caught,
+            'No pudimos volver a analizar la prenda. Intentá de nuevo.',
+          ),
+        )
+        setPhase('form')
       }
       return
     }
 
-    const requestId = ++requestRef.current
-    setPhase('reanalyzing')
-    setError(null)
-
-    try {
-      const proposal: GarmentAnalysisProposal = await api.reanalyze(garment.id)
-      if (requestId !== requestRef.current) {
-        return
-      }
-
-      setValues((current) =>
-        current
-          ? garmentFormValuesFromProposal(proposal, current)
-          : garmentFormValuesFromGarment(garment),
-      )
-      setConfidence(proposal.confidence)
-      // Deliberately no PATCH here: the proposal only refills the form.
-      setPhase('form')
-    } catch (caught) {
-      if (requestId !== requestRef.current) {
-        return
-      }
-
-      setError(
-        friendlyError(
-          caught,
-          'No pudimos volver a analizar la prenda. Intentá de nuevo.',
-        ),
-      )
-      setPhase('form')
+    // Draft: analyze the same file again. Nothing is persisted until Guardar.
+    if (file) {
+      await analyze(file)
     }
   }
 

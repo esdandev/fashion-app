@@ -48,9 +48,40 @@ export interface GarmentAnalysisProposal {
   confidence: number
 }
 
+/** Result of `POST /api/garments/analyze`; no garment row exists yet. */
+export interface AnalyzeGarmentResponse {
+  contentHash: string
+  imageUrl: string
+  thumbUrl: string
+  analysis: GarmentAnalysisProposal
+  existingGarmentId: string | null
+}
+
+/** Mirrors `ConfirmGarmentRequest` on the API. */
+export interface ConfirmGarmentRequest {
+  contentHash: string
+  name: string
+  category: GarmentCategory
+  subcategory?: string | null
+  colorName: string
+  colorHex: string
+  pattern?: string | null
+  seasons: Season[]
+  formality: number
+  material?: string | null
+  styleTags: string[]
+  notes?: string | null
+  confidence?: number
+}
+
 export interface CreateGarmentResponse {
   garment: Garment
   deduplicated: boolean
+}
+
+/** Public runtime flags used to hide write actions in the demo. */
+export interface AppConfig {
+  demo: boolean
 }
 
 /** Mirrors `PatchGarmentRequest` on the API. Only sent fields are changed. */
@@ -58,6 +89,7 @@ export interface PatchGarmentRequest {
   name?: string
   category?: GarmentCategory
   colorName?: string
+  colorHex?: string
   formality?: number
   seasons?: Season[]
   styleTags?: string[]

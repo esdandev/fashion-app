@@ -194,8 +194,11 @@ fashion-app/
 | GET | `/api/digest/today` | Digest del día (cacheado). |
 | POST | `/api/digest/refresh` | Regenerar manualmente (requiere `ADMIN_SECRET`). |
 | GET | `/api/garments` | Listado paginado con filtros (`category`, `color`, `season`, `cursor`). |
-| POST | `/api/garments` | Alta con imagen (multipart) + análisis IA. |
-| PATCH | `/api/garments/{id}` | Corregir atributos. |
+| GET | `/api/config` | Flags públicos de runtime (`demo`). |
+| POST | `/api/garments/analyze` | Analiza la foto y devuelve la propuesta sin crear la prenda. |
+| POST | `/api/garments/confirm` | Crea la prenda con los valores confirmados y el hash ya analizado. |
+| POST | `/api/garments` | Alta multipart de compatibilidad (analiza y persiste en un request). |
+| PATCH | `/api/garments/{id}` | Corregir atributos (incluye `colorHex`). |
 | POST | `/api/garments/{id}/reanalyze` | Reintentar análisis. |
 | DELETE | `/api/garments/{id}` | Archivar (baja lógica). |
 | GET | `/api/outfits` | Listado de outfits guardados. |
@@ -265,15 +268,16 @@ Convenciones: errores con `ProblemDetails`; validación con DataAnnotations o Fl
 
 ### Alta de una prenda
 
-1. El front envía la foto (JPEG/PNG/WebP, máx. 10 MB).
+1. El front envía la foto (JPEG/PNG/WebP, máx. 10 MB) a `POST /api/garments/analyze`.
 2. El backend valida MIME real, límite de tamaño y decodifica la imagen.
 3. **Normaliza**: corrige orientación, redimensiona a 1600 px de lado mayor y genera miniatura de 400 px en WebP. Elimina metadatos EXIF.
-4. Calcula hash SHA-256 del archivo normalizado. Si ya existe, devuelve el análisis previo (idempotencia y ahorro de costo).
+4. Calcula hash SHA-256 del archivo normalizado. Si ya existe, devuelve el id y el análisis previos (idempotencia y ahorro de costo).
 5. Llama al modelo multimodal con la imagen y un prompt que exige **JSON estricto**.
-6. Valida el JSON contra el esquema. Si falla, reintenta una vez con temperatura 0; si vuelve a fallar, guarda la prenda con atributos mínimos y `Confidence = 0` para corrección manual.
-7. Guarda la prenda y devuelve atributos + confianza. El usuario confirma o edita.
+6. Valida el JSON contra el esquema. Si falla, reintenta una vez con temperatura 0; si vuelve a fallar, devuelve atributos mínimos y `Confidence = 0` para corrección manual.
+7. Devuelve `contentHash`, URLs y la propuesta **sin crear la fila**. El usuario confirma o edita.
+8. `POST /api/garments/confirm` crea la prenda con los valores confirmados y los archivos content-addressed. No llama a la IA ni consume cuota; si el hash ya existe, devuelve la prenda existente (`200`, deduplicada).
 
-El análisis es **sincrónico** dentro de `POST /api/garments` (una prenda por request, timeout de 20 s). Es más simple que una cola y alcanza para el objetivo de tres minutos con cinco prendas. Si el proveedor tarda o falla, la prenda se guarda igual con `Confidence = 0` y el usuario puede reintentar con `POST /api/garments/{id}/reanalyze`.
+El análisis es **sincrónico** por request (timeout de 20 s) y no persiste la prenda: cancelar el diálogo deja solo archivos reutilizables, nunca una fila huérfana. Si el proveedor tarda o falla, el análisis vuelve con `Confidence = 0` y el usuario puede reintentar con `POST /api/garments/{id}/reanalyze` (o volver a analizar el mismo archivo). `POST /api/garments` se mantiene por compatibilidad, pero la UI usa analyze + confirm.
 
 `reanalyze` **no sobrescribe nada sin confirmación**: devuelve una propuesta con los atributos detectados y el front muestra el mismo formulario de confirmación que en el alta, con los valores actuales como base.
 
@@ -431,3 +435,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | Diseño aprobado. Plan de implementación de la Fase 0–1 escrito en [[Fashion App - Plan Fase 0-1]]. |
 | 2026-11-07 | ImageSharp reemplazado por Magick.NET (Apache 2.0) porque la versión 4 bloquea el publish Release sin licencia. |
 | 2026-11-07 | Fase 1 cerrada: alta por foto con análisis IA, confirmación editable, reanálisis no destructivo, grilla con filtros y E2E del flujo crítico. |
+| 2026-11-08 | Alta revisada a flujo analyze → confirm: analizar ya no persiste una prenda, confirmar crea la fila sin IA. Se agregan `GET /api/config`, `colorHex` en el formulario/PATCH y un E2E con base aislada que cubre cancelación sin fila nueva. |

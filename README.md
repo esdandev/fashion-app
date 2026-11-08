@@ -92,15 +92,23 @@ pnpm build
 # Frontend: lint
 pnpm lint
 
-# E2E (con el backend fake ya levantado en 5210)
+# E2E (levanta backend aislado + Vite automáticamente)
 pnpm exec playwright test
 ```
 
-Playwright levanta Vite automáticamente (`webServer` en
-`frontend/playwright.config.ts`) y espera el backend en `http://localhost:5210`.
-El E2E cubre el flujo crítico: subir foto → ver la confirmación → editar →
-guardar → ver la prenda en la grilla, además del spinner, el reanálisis sin
-guardar y el rechazo de archivos de más de 10 MB.
+Playwright levanta **ambos** servidores (`webServer` en
+`frontend/playwright.config.ts`): Vite en `5173` y la API en `5210`. La API de
+test usa `frontend/../.test-data` (SQLite + uploads) y ese directorio se borra al
+inicio de cada run, así que el E2E nunca toca la base de desarrollo `data/`.
+Antes de correrlo, detené cualquier backend o Vite propio en esos puertos: el
+runner no reutiliza servidores existentes para no mutar datos reales.
+
+El backend de test arranca con `Ai__Provider=fake`, `Demo__Enabled=false`,
+`App__Token` vacío y rutas de almacenamiento propias. El E2E cubre el flujo
+crítico: subir foto → ver la confirmación → editar color/nombre → guardar → ver
+la prenda en la grilla, además del spinner, el reanálisis sin guardar, la
+cancelación sin fila nueva, el rechazo de archivos de más de 10 MB y el modo
+demo de solo lectura.
 
 ## Variables de entorno
 
@@ -149,9 +157,12 @@ dotnet run --project backend/FashionApp.Api
 | Método | Ruta | Función |
 |---|---|---|
 | GET | `/api/health` | Estado del servicio y hora UTC. |
+| GET | `/api/config` | Flags públicos de runtime (`demo`). |
 | GET | `/api/garments` | Listado paginado. Filtros: `category`, `color`, `season`, `cursor`. |
-| POST | `/api/garments` | Alta multipart (`file`: JPEG/PNG/WebP, máx. 10 MB) + análisis IA. Devuelve `201` o `200` con `deduplicated=true` si la imagen ya existía. |
-| PATCH | `/api/garments/{id}` | Corrige nombre, categoría, color, formalidad, temporadas y etiquetas. |
+| POST | `/api/garments/analyze` | Multipart (`file`): normaliza, guarda la imagen content-addressed y devuelve `contentHash`, URLs y `analysis` **sin crear la prenda**. Consume cuota de IA. |
+| POST | `/api/garments/confirm` | JSON con los valores confirmados: crea la prenda usando los archivos del hash. No llama a la IA ni consume cuota. Deduplica por hash (`200`). |
+| POST | `/api/garments` | Alta multipart de compatibilidad (`file`): analiza y persiste en un solo request. El frontend ya no lo usa. |
+| PATCH | `/api/garments/{id}` | Corrige nombre, categoría, color (`colorName`/`colorHex`), formalidad, temporadas y etiquetas. |
 | DELETE | `/api/garments/{id}` | Archiva (baja lógica; no borra archivos). |
 | POST | `/api/garments/{id}/reanalyze` | Vuelve a analizar y devuelve una propuesta **sin** sobrescribir la prenda. |
 | GET | `/media/{hash}.webp` | Imagen normalizada, con caché inmutable. |
@@ -162,16 +173,25 @@ endpoints de digest y outfits todavía no están implementados (Fases 2–3).
 
 ## Decisiones de la Fase 0–1
 
-- **Análisis sincrónico en el alta.** `POST /api/garments` normaliza, deduplica
-  por hash de contenido y analiza en el mismo request. Si la IA falla, la
-  prenda se guarda igual con `confidence = 0` y se puede reintentar.
+- **Alta en dos pasos: analizar → confirmar.** `POST /api/garments/analyze`
+  normaliza, guarda la imagen content-addressed y analiza sin crear la prenda.
+  Cerrar el diálogo después del análisis deja solo archivos reutilizables, nunca
+  una fila huérfana. `POST /api/garments/confirm` crea la prenda con los valores
+  confirmados, sin IA ni consumo de cuota.
+- **Compatibilidad del alta directa.** `POST /api/garments` sigue existiendo con
+  su contrato anterior (analiza y persiste en un request), pero la UI usa el
+  flujo analyze + confirm.
 - **Reanálisis no destructivo.** `reanalyze` devuelve una propuesta; el front
   vuelve a llenar el formulario y solo persiste si el usuario guarda.
-- **Edición explícita.** El formulario de confirmación aplica los cambios con
-  `PATCH /api/garments/{id}`; la foto y el análisis inicial se crean con el
-  `POST` multipart.
+- **Edición explícita.** Si la foto ya existe, el formulario actualiza la prenda
+  con `PATCH /api/garments/{id}`; si es nueva, confirma con
+  `POST /api/garments/confirm`.
 - **Imágenes content-addressed.** El nombre sale del hash del contenido:
   re-subir la misma foto no crea otra prenda ni gasta otra llamada de IA.
+- **Color con muestra.** El formulario acepta `colorName` y `colorHex`; el hex se
+  guarda en confirm/PATCH y la tarjeta lo usa para el círculo de color.
+- **Demo de solo lectura.** `GET /api/config` expone `{ demo }`; la UI oculta las
+  acciones de escritura y explica en español por qué no se puede subir.
 - **Sin librería de UI.** Tailwind 4 y componentes propios; rutas con
   `React.lazy` para no cargar el guardarropa en la home.
 - **IA fake en tests.** Ni los tests de backend ni el E2E llaman a un proveedor

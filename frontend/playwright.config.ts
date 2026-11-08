@@ -1,11 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const baseURL = 'http://localhost:5173'
+const apiURL = 'http://localhost:5210'
 
 /**
- * The backend is started separately in fake-AI mode (see README). Keeping it out
- * of `webServer` avoids starting a .NET process from every test run and makes
- * failures easier to diagnose.
+ * Both servers are started by Playwright with an isolated test database and
+ * uploads root (`frontend/.test-data`, wiped on every run). Stop any local dev
+ * server on ports 5210/5173 before running the E2E, otherwise the isolated
+ * processes cannot bind.
  */
 export default defineConfig({
   testDir: './tests',
@@ -24,13 +26,21 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'pnpm dev',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    env: {
-      VITE_API_URL: process.env.VITE_API_URL ?? 'http://localhost:5210',
+  webServer: [
+    {
+      command: 'node tests/test-backend.mjs',
+      url: `${apiURL}/api/health`,
+      reuseExistingServer: false,
+      timeout: 180_000,
     },
-  },
+    {
+      command: 'pnpm dev --port 5173 --strictPort',
+      url: baseURL,
+      reuseExistingServer: false,
+      timeout: 120_000,
+      env: {
+        VITE_API_URL: apiURL,
+      },
+    },
+  ],
 })

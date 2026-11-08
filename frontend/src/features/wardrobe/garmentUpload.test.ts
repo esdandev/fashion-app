@@ -5,6 +5,7 @@ import {
   garmentFormValuesFromGarment,
   garmentFormValuesFromProposal,
   splitTags,
+  toConfirmRequest,
   toPatchRequest,
   validateGarmentFile,
 } from './garmentUpload'
@@ -59,6 +60,7 @@ describe('garment form mapping', () => {
       name: 'Camisa de lino',
       category: 'top',
       colorName: 'beige',
+      colorHex: '',
       seasons: ['spring', 'summer'],
       formality: 3,
       styleTags: 'minimalista, casual',
@@ -85,6 +87,7 @@ describe('garment form mapping', () => {
       name: 'Camisa de lino',
       category: 'top',
       colorName: 'beige',
+      colorHex: '',
       seasons: ['winter'],
       formality: 5,
       styleTags: 'formal',
@@ -120,6 +123,7 @@ describe('garment form mapping', () => {
         name: '  Camisa vieja  ',
         category: 'top',
         colorName: ' blanco ',
+        colorHex: ' #ffffff ',
         seasons: ['spring'],
         formality: 0,
         styleTags: ' casual, , minimalista ',
@@ -128,11 +132,49 @@ describe('garment form mapping', () => {
       name: 'Camisa vieja',
       category: 'top',
       colorName: 'blanco',
+      colorHex: '#ffffff',
       seasons: ['spring'],
       formality: 1,
       styleTags: ['casual', 'minimalista'],
     })
 
     expect(splitTags('')).toEqual([])
+  })
+
+  it('builds a confirm request with the analyzed extras and confidence', () => {
+    expect(
+      toConfirmRequest(
+        {
+          name: '  Camisa de lino  ',
+          category: 'top',
+          colorName: ' celeste ',
+          colorHex: ' #abcdef ',
+          seasons: ['spring'],
+          formality: 7,
+          styleTags: ' casual, minimalista ',
+        },
+        'a'.repeat(64),
+        {
+          confidence: 0.9,
+          subcategory: 'camisa',
+          pattern: 'liso',
+          material: 'lino',
+        },
+      ),
+    ).toEqual({
+      contentHash: 'a'.repeat(64),
+      name: 'Camisa de lino',
+      category: 'top',
+      subcategory: 'camisa',
+      colorName: 'celeste',
+      colorHex: '#abcdef',
+      pattern: 'liso',
+      seasons: ['spring'],
+      formality: 5,
+      material: 'lino',
+      styleTags: ['casual', 'minimalista'],
+      notes: null,
+      confidence: 0.9,
+    })
   })
 })

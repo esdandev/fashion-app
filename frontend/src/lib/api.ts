@@ -1,4 +1,7 @@
 import type {
+  AnalyzeGarmentResponse,
+  AppConfig,
+  ConfirmGarmentRequest,
   CreateGarmentResponse,
   Garment,
   GarmentAnalysisProposal,
@@ -109,6 +112,48 @@ export const api = {
     })
 
     return parseResponse<CreateGarmentResponse>(response)
+  },
+
+  /**
+   * Normalizes, stores and analyzes a photo without creating a garment. The
+   * returned content hash is later sent to `confirmGarment` when the user saves.
+   */
+  async analyzeGarment(file: File): Promise<AnalyzeGarmentResponse> {
+    const body = new FormData()
+    body.append('file', file)
+
+    const response = await fetch(`${API_BASE_URL}/api/garments/analyze`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body,
+    })
+
+    return parseResponse<AnalyzeGarmentResponse>(response)
+  },
+
+  /** Creates the garment with the values the user confirmed. No AI call. */
+  async confirmGarment(
+    request: ConfirmGarmentRequest,
+  ): Promise<CreateGarmentResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/garments/confirm`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    return parseResponse<CreateGarmentResponse>(response)
+  },
+
+  /** Public runtime flags (currently only the demo read-only switch). */
+  async getConfig(): Promise<AppConfig> {
+    const response = await fetch(`${API_BASE_URL}/api/config`, {
+      headers: authHeaders(),
+    })
+
+    return parseResponse<AppConfig>(response)
   },
 
   async reanalyze(id: string): Promise<GarmentAnalysisProposal> {

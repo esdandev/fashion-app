@@ -158,6 +158,36 @@ export function GarmentForm({
         </label>
 
         <label
+          htmlFor="garment-color-hex"
+          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+        >
+          Color (hex)
+          <span className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="size-6 shrink-0 rounded-full border border-stone-300"
+              style={{ backgroundColor: values.colorHex }}
+            />
+            <input
+              id="garment-color-hex"
+              name="colorHex"
+              type="text"
+              maxLength={7}
+              value={values.colorHex}
+              onChange={(event) =>
+                onChange({ ...values, colorHex: event.target.value })
+              }
+              disabled={busy}
+              className={inputClassName}
+              placeholder="#f5f5dc"
+            />
+          </span>
+          <span className="text-[11px] font-normal text-stone-400">
+            Opcional. Se usa para la muestra de color de la tarjeta.
+          </span>
+        </label>
+
+        <label
           htmlFor="garment-formality"
           className="flex flex-col gap-1 text-xs font-medium text-stone-500"
         >

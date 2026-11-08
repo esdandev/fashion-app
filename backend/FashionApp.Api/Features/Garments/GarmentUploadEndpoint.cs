@@ -13,12 +13,10 @@ public sealed record CreateGarmentResponse(GarmentDto Garment, bool Deduplicated
 
 public static class GarmentUploadEndpoint
 {
-    private const long MaxFileBytes = 10 * 1024 * 1024;
-
-    private static readonly string[] AllowedExtensions = [".jpg", ".jpeg", ".png", ".webp"];
-
     public static IEndpointRouteBuilder MapGarmentUploadEndpoint(this IEndpointRouteBuilder app)
     {
+        // Kept for compatibility: the frontend uses analyze + confirm so a
+        // cancelled dialog never creates a database row.
         app.MapPost("/api/garments", HandleAsync)
             .DisableAntiforgery()
             .BlockWritesInDemo()
@@ -37,43 +35,13 @@ public static class GarmentUploadEndpoint
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (file is null || file.Length == 0)
-        {
-            return Problem(
-                StatusCodes.Status400BadRequest,
-                "Archivo inválido",
-                "Selecciona una imagen para subir.");
-        }
+        var (normalized, error) = await GarmentImageIntake.TryNormalizeAsync(
+            file,
+            normalizer,
+            cancellationToken);
 
-        if (file.Length > MaxFileBytes)
-            return TooLarge();
-
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (!AllowedExtensions.Contains(extension))
-            return UnsupportedFormat();
-
-        var input = await ReadAllBytesAsync(file, cancellationToken);
-        if (input.LongLength > MaxFileBytes)
-            return TooLarge();
-
-        // The extension is only a hint: reject content that does not start with
-        // a supported signature before handing it to the decoder.
-        if (!HasSupportedSignature(input))
-            return UnsupportedFormat();
-
-        NormalizedImage normalized;
-        try
-        {
-            using var imageStream = new MemoryStream(input, writable: false);
-            normalized = await normalizer.NormalizeAsync(imageStream, cancellationToken);
-        }
-        catch (InvalidImageException)
-        {
-            return Problem(
-                StatusCodes.Status400BadRequest,
-                "Imagen inválida",
-                "La imagen está dañada o no se pudo leer.");
-        }
+        if (normalized is null)
+            return error ?? GarmentImageIntake.InvalidFile();
 
         // Check for an existing hash before touching the disk or the analyzer:
         // re-uploading the same photo must not create a second file or AI call.
@@ -89,24 +57,10 @@ public static class GarmentUploadEndpoint
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
             return QuotaResults.TooManyRequests(httpContext);
 
-        GarmentAnalysis analysis;
-        try
-        {
-            analysis = await analyzer.AnalyzeAsync(
-                normalized.Original,
-                "image/webp",
-                cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            // A down provider must never lose the garment: store it with zero
-            // confidence so the user can retry the analysis later.
-            analysis = GarmentAnalysis.Empty();
-        }
+        var analysis = await GarmentImageIntake.AnalyzeAsync(
+            analyzer,
+            normalized.Original,
+            cancellationToken);
 
         var (imagePath, thumbPath) = await storage.SaveAsync(normalized, cancellationToken);
         var now = DateTimeOffset.UtcNow;
@@ -138,16 +92,6 @@ public static class GarmentUploadEndpoint
             new CreateGarmentResponse(GarmentQuery.ToDto(garment), false));
     }
 
-    private static async Task<byte[]> ReadAllBytesAsync(
-        IFormFile file,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = file.OpenReadStream();
-        using var buffer = new MemoryStream();
-        await stream.CopyToAsync(buffer, cancellationToken);
-        return buffer.ToArray();
-    }
-
     private static Garment ToGarment(
         GarmentAnalysis analysis,
         NormalizedImage image,
@@ -176,7 +120,7 @@ public static class GarmentUploadEndpoint
         {
             Id = Guid.NewGuid(),
             Name = name,
-            Category = ParseCategory(analysis.Category),
+            Category = GarmentAnalysisMapping.ParseCategory(analysis.Category),
             Subcategory = analysis.Subcategory?.Trim(),
             ColorName = colors.FirstOrDefault() ?? "",
             ColorHex = "",
@@ -197,61 +141,4 @@ public static class GarmentUploadEndpoint
             UpdatedAt = now
         };
     }
-
-    private static GarmentCategory ParseCategory(string? category) =>
-        Enum.TryParse<GarmentCategory>(category?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            ? parsed
-            : GarmentCategory.Top;
-
-    private static bool HasSupportedSignature(byte[] content)
-    {
-        // JPEG: FF D8 FF
-        if (content.Length >= 3
-            && content[0] == 0xFF
-            && content[1] == 0xD8
-            && content[2] == 0xFF)
-        {
-            return true;
-        }
-
-        // PNG: 89 50 4E 47
-        if (content.Length >= 4
-            && content[0] == 0x89
-            && content[1] == 0x50
-            && content[2] == 0x4E
-            && content[3] == 0x47)
-        {
-            return true;
-        }
-
-        // WebP: "RIFF" .... "WEBP"
-        if (content.Length >= 12
-            && content[0] == (byte)'R'
-            && content[1] == (byte)'I'
-            && content[2] == (byte)'F'
-            && content[3] == (byte)'F'
-            && content[8] == (byte)'W'
-            && content[9] == (byte)'E'
-            && content[10] == (byte)'B'
-            && content[11] == (byte)'P')
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static IResult TooLarge() => Problem(
-        StatusCodes.Status413PayloadTooLarge,
-        "Archivo demasiado grande",
-        "La imagen no puede superar los 10 MB.");
-
-    private static IResult UnsupportedFormat() => Problem(
-        StatusCodes.Status415UnsupportedMediaType,
-        "Formato no soportado",
-        "Solo se aceptan imágenes JPEG, PNG o WebP.");
-
-    private static IResult Problem(int statusCode, string title, string detail) =>
-        Results.Problem(statusCode: statusCode, title: title, detail: detail);
 }

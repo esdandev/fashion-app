@@ -1,4 +1,5 @@
 import type {
+  ConfirmGarmentRequest,
   Garment,
   GarmentAnalysisProposal,
   GarmentCategory,
@@ -37,9 +38,20 @@ export interface GarmentFormValues {
   name: string
   category: GarmentCategory
   colorName: string
+  colorHex: string
   seasons: Season[]
   formality: number
   styleTags: string
+}
+
+export const EMPTY_GARMENT_FORM_VALUES: GarmentFormValues = {
+  name: '',
+  category: 'top',
+  colorName: '',
+  colorHex: '',
+  seasons: [],
+  formality: 3,
+  styleTags: '',
 }
 
 /**
@@ -73,6 +85,7 @@ export function garmentFormValuesFromGarment(
     name: garment.name,
     category: garment.category,
     colorName: garment.colorName,
+    colorHex: garment.colorHex,
     seasons: garment.seasons
       .map(parseSeason)
       .filter((season): season is Season => season !== null),
@@ -100,6 +113,7 @@ export function garmentFormValuesFromProposal(
     name: proposal.name.trim() || current.name,
     category: category ?? current.category,
     colorName: color?.trim() ?? current.colorName,
+    colorHex: current.colorHex,
     seasons: seasons.length > 0 ? seasons : current.seasons,
     formality: clampFormality(proposal.formality),
     styleTags: proposal.styleTags.join(', '),
@@ -111,9 +125,43 @@ export function toPatchRequest(values: GarmentFormValues): PatchGarmentRequest {
     name: values.name.trim(),
     category: values.category,
     colorName: values.colorName.trim(),
+    colorHex: values.colorHex.trim(),
     seasons: values.seasons,
     formality: clampFormality(values.formality),
     styleTags: splitTags(values.styleTags),
+  }
+}
+
+/**
+ * Builds the confirm payload from the editable values. Optional analysis fields
+ * that are not part of the form (subcategory, pattern, material) are passed
+ * through so confirming does not discard what the AI detected.
+ */
+export function toConfirmRequest(
+  values: GarmentFormValues,
+  contentHash: string,
+  options: {
+    confidence?: number
+    subcategory?: string | null
+    pattern?: string | null
+    material?: string | null
+    notes?: string | null
+  } = {},
+): ConfirmGarmentRequest {
+  return {
+    contentHash,
+    name: values.name.trim(),
+    category: values.category,
+    subcategory: options.subcategory ?? null,
+    colorName: values.colorName.trim(),
+    colorHex: values.colorHex.trim(),
+    pattern: options.pattern ?? null,
+    seasons: values.seasons,
+    formality: clampFormality(values.formality),
+    material: options.material ?? null,
+    styleTags: splitTags(values.styleTags),
+    notes: options.notes ?? null,
+    confidence: options.confidence,
   }
 }
 
