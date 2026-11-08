@@ -23,3 +23,23 @@ public sealed record DigestDto(
     string Summary,
     DateTimeOffset GeneratedAt,
     IReadOnlyList<DigestItemDto> Items);
+
+/// <summary>
+/// Untrusted proposal produced by an <c>IDigestSummarizer</c>. Drafts must pass
+/// <see cref="DigestValidator"/> before they are persisted: the model may invent
+/// URLs or style tags that are not in the source feeds.
+/// </summary>
+public sealed record DigestDraft(
+    string Title,
+    string Url,
+    string Source,
+    string Summary,
+    string[] StyleTags,
+    string? ImageUrl,
+    DateTimeOffset? PublishedAt);
+
+/// <summary>
+/// Result of summarizing the day's feed entries. <see cref="Summary"/> is the
+/// short editorial intro and <see cref="Items"/> the proposed notes.
+/// </summary>
+public sealed record DigestSummary(string? Summary, IReadOnlyList<DigestDraft> Items);

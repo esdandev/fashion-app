@@ -9,6 +9,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Infrastructure/Ai/Prompts/garment-analysis.md" />
     <EmbeddedResource Include="Infrastructure/Ai/Prompts/outfit-suggestions.md" />
+    <EmbeddedResource Include="Infrastructure/Ai/Prompts/digest-summary.md" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +28,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageReference Include="System.ServiceModel.Syndication" Version="10.0.14" />
   </ItemGroup>
 
 </Project>

@@ -6,6 +6,7 @@ using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Demo;
+using FashionApp.Api.Infrastructure.Feeds;
 using FashionApp.Api.Infrastructure.Quotas;
 using FashionApp.Api.Infrastructure.RateLimiting;
 using FashionApp.Api.Infrastructure.Storage;
@@ -66,16 +67,42 @@ if (aiProvider.Equals("gemini", StringComparison.OrdinalIgnoreCase))
 
     builder.Services.AddHttpClient<IGarmentAnalyzer, GeminiGarmentAnalyzer>();
     builder.Services.AddHttpClient<IOutfitSuggester, GeminiOutfitSuggester>();
+    builder.Services.AddHttpClient<IDigestSummarizer, GeminiDigestSummarizer>();
 }
 else if (usingFakeProvider)
 {
     builder.Services.AddSingleton<IGarmentAnalyzer, FakeGarmentAnalyzer>();
     builder.Services.AddSingleton<IOutfitSuggester, FakeOutfitSuggester>();
+    builder.Services.AddSingleton<IDigestSummarizer, FakeDigestSummarizer>();
 }
 else
 {
     throw new InvalidOperationException(
         $"Proveedor de IA desconocido '{aiOptions.Provider}'. Usa 'fake' o 'gemini'.");
+}
+
+// The digest has its own provider switch because feeds are not AI: they can be
+// real RSS even when the summarizer is the fake. Unknown values fail fast.
+var digestProvider = builder.Configuration["Digest:Provider"]?.Trim() ?? "";
+if (digestProvider.Length == 0)
+{
+    digestProvider = builder.Environment.IsDevelopment()
+        ? "fake"
+        : "rss";
+}
+
+if (digestProvider.Equals("rss", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IFeedFetcher, HttpFeedFetcher>();
+}
+else if (digestProvider.Equals("fake", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IFeedFetcher, FakeFeedFetcher>();
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Proveedor de feeds desconocido '{digestProvider}'. Usa 'rss' o 'fake'.");
 }
 
 var app = builder.Build();
