@@ -94,7 +94,7 @@ public static class DigestEndpoints
     /// Loads the columns the DTO and the matching need, without tracking and
     /// without materializing heavy fields such as notes or the analysis JSON.
     /// </summary>
-    private static async Task<IReadOnlyList<Garment>> LoadActiveGarmentsAsync(
+    internal static async Task<IReadOnlyList<Garment>> LoadActiveGarmentsAsync(
         AppDbContext db,
         CancellationToken cancellationToken) =>
         await db.Garments
@@ -116,7 +116,7 @@ public static class DigestEndpoints
             })
             .ToListAsync(cancellationToken);
 
-    private static string[] ParseStyleTags(string? styleTagsJson)
+    internal static string[] ParseStyleTags(string? styleTagsJson)
     {
         if (string.IsNullOrWhiteSpace(styleTagsJson))
             return [];

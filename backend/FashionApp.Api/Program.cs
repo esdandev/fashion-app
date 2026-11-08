@@ -107,6 +107,8 @@ else
 }
 
 builder.Services.AddScoped<IDigestGenerator, DigestGenerator>();
+builder.Services.AddSingleton<DigestRefreshGuard>();
+builder.Services.AddHostedService<DigestBackgroundService>();
 
 var app = builder.Build();
 
@@ -152,6 +154,7 @@ app.MapGarmentReanalyzeEndpoint();
 app.MapOutfitEndpoints();
 app.MapOutfitSuggestEndpoint();
 app.MapDigestEndpoints();
+app.MapDigestRefreshEndpoint();
 
 app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, DataPaths paths) =>
 {

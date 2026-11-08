@@ -5,6 +5,34 @@ using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Deterministic clock for components that take a <see cref="TimeProvider"/>.
+/// Tests call <see cref="Advance"/> instead of sleeping.
+/// </summary>
+public sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
+{
+    private DateTimeOffset _now = start;
+
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    public void Advance(TimeSpan delta) => _now += delta;
+}
+
+/// <summary>
+/// Lets a test advance a clock exposed as <see cref="TimeProvider"/> without
+/// production code depending on the test double.
+/// </summary>
+public static class TimeProviderTestExtensions
+{
+    public static void Advance(this TimeProvider provider, TimeSpan delta)
+    {
+        if (provider is not ManualTimeProvider manual)
+            throw new InvalidOperationException("El test requiere un ManualTimeProvider.");
+
+        manual.Advance(delta);
+    }
+}
+
 public static class TestDb
 {
     public static AppDbContext Create(string? dbPath = null)
