@@ -40,6 +40,15 @@ function normalize(value: string): string {
     .toLocaleLowerCase('es')
 }
 
+function isSameSelection(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  if (left.length !== right.length) return false
+  const ids = new Set(right)
+  return left.every((id) => ids.has(id))
+}
+
 export function OutfitBuilder({
   wardrobe,
   initialSelection = [],
@@ -92,7 +101,25 @@ export function OutfitBuilder({
     [selectedIds, garmentsById],
   )
 
-  const validation = validateOutfitGarments(selectedGarments)
+  const initialIds = useMemo(
+    () => [...new Set(initialSelection.map((garment) => garment.id))],
+    [initialSelection],
+  )
+  const archivedIds = useMemo(
+    () => new Set(archivedSelection.map((garment) => garment.id)),
+    [archivedSelection],
+  )
+  const selectionChanged = !isSameSelection(selectedIds, initialIds)
+  const keepsArchived = selectedIds.some((id) => archivedIds.has(id))
+  // The editor drops archived ids whenever the selection changes, so the
+  // validation must run against exactly that submittable selection. Otherwise
+  // a "valid" state could rely on an archived shoe and fail on the server.
+  const willDropArchived = keepsArchived && selectionChanged
+  const submittableSelection = willDropArchived
+    ? selectedGarments.filter((garment) => !archivedIds.has(garment.id))
+    : selectedGarments
+
+  const validation = validateOutfitGarments(submittableSelection)
   const trimmedName = name.trim()
   const canSubmit = validation.canSave && !isSaving
 
@@ -110,7 +137,7 @@ export function OutfitBuilder({
       .sort((left, right) => left.name.localeCompare(right.name, 'es')),
   })).filter((group) => group.garments.length > 0)
 
-  const previewItems: OutfitItem[] = selectedGarments.map(
+  const previewItems: OutfitItem[] = submittableSelection.map(
     (garment, index) => ({
       garment,
       layer: layerFor(garment.category),
@@ -143,7 +170,7 @@ export function OutfitBuilder({
     onSave({
       name: trimmedName,
       occasion: occasion.trim() ? occasion.trim() : null,
-      garmentIds: selectedIds,
+      garmentIds: submittableSelection.map((garment) => garment.id),
     })
   }
 
@@ -312,6 +339,7 @@ export function OutfitBuilder({
                       <button
                         type="button"
                         onClick={() => toggleGarment(garment.id)}
+                        aria-label={`Quitar ${garment.name}`}
                         className="shrink-0 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100"
                       >
                         Quitar
@@ -332,9 +360,9 @@ export function OutfitBuilder({
               name={trimmedName || 'Vista previa del outfit'}
             />
             <p className="text-xs text-stone-500">
-              {selectedIds.length === 1
+              {submittableSelection.length === 1
                 ? '1 prenda seleccionada'
-                : `${selectedIds.length} prendas seleccionadas`}
+                : `${submittableSelection.length} prendas seleccionadas`}
             </p>
             {selectedIds.length > 0 && (
               <button
@@ -349,6 +377,15 @@ export function OutfitBuilder({
         </div>
 
         <div className="space-y-2 border-t border-stone-200 pt-4">
+          {willDropArchived && (
+            <p
+              role="note"
+              className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
+              Al guardar se quitarán las prendas archivadas: ya no están en el
+              guardarropa.
+            </p>
+          )}
           {!validation.canSave && validation.message && (
             <p role="status" className="text-sm text-amber-800">
               {validation.message}

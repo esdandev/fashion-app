@@ -115,6 +115,96 @@ describe('OutfitBuilder', () => {
     expect(
       screen.queryByRole('checkbox', { name: /zapatillas viejas/i }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Quitar Zapatillas viejas' }),
+    ).toBeInTheDocument()
     expect(saveButton()).toBeEnabled()
+  })
+
+  it('validates only the active selection that will be submitted', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const archivedShoes = garment(
+      'archivadas',
+      'Zapatillas viejas',
+      'shoes',
+      2,
+    )
+
+    render(
+      <OutfitBuilder
+        wardrobe={[camisa, jean, zapatillas]}
+        initialSelection={[camisa, jean, archivedShoes]}
+        initialName="Look de trabajo"
+        onSave={onSave}
+      />,
+    )
+
+    expect(saveButton()).toBeEnabled()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+
+    // Changing the selection makes the archived shoes disappear on save, so the
+    // validation must run without them: the outfit loses its bottom.
+    await user.click(screen.getByRole('checkbox', { name: /jean/i }))
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Al guardar se quitarán las prendas archivadas: ya no están en el guardarropa.',
+    )
+    expect(saveButton()).toBeDisabled()
+    expect(
+      screen.getByText(
+        'El outfit necesita una parte superior y una inferior, o un vestido.',
+      ),
+    ).toBeInTheDocument()
+
+    // Restoring the exact initial selection keeps the archived shoes again.
+    await user.click(screen.getByRole('checkbox', { name: /jean/i }))
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(saveButton()).toBeEnabled()
+
+    // Adding an active shoe is valid on its own and the archived one is dropped
+    // from the submitted ids.
+    await user.click(screen.getByRole('checkbox', { name: /zapatillas/i }))
+    expect(screen.getByRole('note')).toBeInTheDocument()
+    expect(saveButton()).toBeEnabled()
+
+    await user.click(saveButton())
+    expect(onSave).toHaveBeenCalledWith({
+      name: 'Look de trabajo',
+      occasion: null,
+      garmentIds: ['camisa', 'jean', 'zapatillas'],
+    })
+  })
+
+  it('disables save when dropping an archived garment leaves the outfit invalid', async () => {
+    const user = userEvent.setup()
+    const remera = garment('remera', 'Remera básica', 'top', 1)
+    const archivedShoes = garment(
+      'archivadas',
+      'Zapatillas viejas',
+      'shoes',
+      2,
+    )
+
+    render(
+      <OutfitBuilder
+        wardrobe={[camisa, remera, jean]}
+        initialSelection={[camisa, jean, archivedShoes]}
+        onSave={vi.fn()}
+      />,
+    )
+
+    // The saved outfit is valid thanks to its archived shoes.
+    expect(saveButton()).toBeEnabled()
+
+    // Swapping the active top changes the selection: the archived shoes will be
+    // dropped, and the resulting top+bottom has no shoes.
+    await user.click(screen.getByRole('checkbox', { name: /camisa/i }))
+    await user.click(screen.getByRole('checkbox', { name: /remera/i }))
+
+    expect(screen.getByRole('note')).toBeInTheDocument()
+    expect(saveButton()).toBeDisabled()
+    expect(
+      screen.getByText('El outfit necesita calzado.'),
+    ).toBeInTheDocument()
   })
 })
