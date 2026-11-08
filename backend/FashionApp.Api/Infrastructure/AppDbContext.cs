@@ -16,6 +16,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Outfit> Outfits => Set<Outfit>();
     public DbSet<OutfitItem> OutfitItems => Set<OutfitItem>();
     public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
+    public DbSet<Digest> Digests => Set<Digest>();
+    public DbSet<DigestItem> DigestItems => Set<DigestItem>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -88,5 +90,30 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         usageCounter.ToTable("UsageCounters");
         usageCounter.HasKey(c => new { c.Date, c.Kind });
         usageCounter.Property(c => c.Kind).HasMaxLength(30).IsRequired();
+
+        // A single digest per day: re-generating a date replaces the previous row.
+        var digest = modelBuilder.Entity<Digest>();
+        digest.ToTable("Digests");
+        digest.HasKey(d => d.Id);
+        digest.Property(d => d.Summary).HasMaxLength(600).IsRequired();
+        digest.HasIndex(d => d.Date).IsUnique();
+
+        var digestItem = modelBuilder.Entity<DigestItem>();
+        digestItem.ToTable("DigestItems");
+        digestItem.HasKey(i => i.Id);
+        digestItem.Property(i => i.Title).HasMaxLength(200).IsRequired();
+        digestItem.Property(i => i.Url).HasMaxLength(500).IsRequired();
+        digestItem.Property(i => i.Source).HasMaxLength(80).IsRequired();
+        digestItem.Property(i => i.Summary).HasMaxLength(600).IsRequired();
+        digestItem.Property(i => i.StyleTagsJson).HasMaxLength(300).IsRequired();
+        digestItem.Property(i => i.ImageUrl).HasMaxLength(500);
+        digestItem.HasOne(i => i.Digest)
+            .WithMany(d => d.Items)
+            .HasForeignKey(i => i.DigestId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // The same note may legitimately appear on consecutive days, so the URL
+        // is unique only within its digest.
+        digestItem.HasIndex(i => new { i.DigestId, i.Url }).IsUnique();
+        digestItem.HasIndex(i => new { i.DigestId, i.SortOrder });
     }
 }

@@ -17,6 +17,85 @@ namespace FashionApp.Api.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
+            modelBuilder.Entity("FashionApp.Api.Domain.Digest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("GeneratedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("Digests", (string)null);
+                });
+
+            modelBuilder.Entity("FashionApp.Api.Domain.DigestItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DigestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("PublishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StyleTagsJson")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DigestId", "SortOrder");
+
+                    b.HasIndex("DigestId", "Url")
+                        .IsUnique();
+
+                    b.ToTable("DigestItems", (string)null);
+                });
+
             modelBuilder.Entity("FashionApp.Api.Domain.Garment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -208,6 +287,17 @@ namespace FashionApp.Api.Migrations
                     b.ToTable("UsageCounters", (string)null);
                 });
 
+            modelBuilder.Entity("FashionApp.Api.Domain.DigestItem", b =>
+                {
+                    b.HasOne("FashionApp.Api.Domain.Digest", "Digest")
+                        .WithMany("Items")
+                        .HasForeignKey("DigestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Digest");
+                });
+
             modelBuilder.Entity("FashionApp.Api.Domain.OutfitItem", b =>
                 {
                     b.HasOne("FashionApp.Api.Domain.Garment", "Garment")
@@ -225,6 +315,11 @@ namespace FashionApp.Api.Migrations
                     b.Navigation("Garment");
 
                     b.Navigation("Outfit");
+                });
+
+            modelBuilder.Entity("FashionApp.Api.Domain.Digest", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("FashionApp.Api.Domain.Outfit", b =>

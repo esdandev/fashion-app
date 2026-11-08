@@ -35,15 +35,25 @@ public static class AccessFilters
         EndpointFilterInvocationContext context,
         EndpointFilterDelegate next)
     {
-        var options = context.HttpContext.RequestServices.GetRequiredService<AppSecurityOptions>();
-        if (string.IsNullOrEmpty(options.Token))
-            return next(context);
-
-        var provided = context.HttpContext.Request.Headers[TokenHeader].ToString();
-        if (!TokenEquals(options.Token, provided))
+        if (!context.HttpContext.HasValidToken())
             return ValueTask.FromResult<object?>(Results.Unauthorized());
 
         return next(context);
+    }
+
+    /// <summary>
+    /// Returns true when the instance is unsecured (no <c>App:Token</c>) or the
+    /// request carries a matching <c>X-App-Token</c>. Use it for responses that
+    /// stay public but expose personal data only to their owner.
+    /// </summary>
+    public static bool HasValidToken(this HttpContext context)
+    {
+        var options = context.RequestServices.GetRequiredService<AppSecurityOptions>();
+        if (string.IsNullOrEmpty(options.Token))
+            return true;
+
+        var provided = context.Request.Headers[TokenHeader].ToString();
+        return TokenEquals(options.Token, provided);
     }
 
     private static ValueTask<object?> BlockWritesInDemoAsync(

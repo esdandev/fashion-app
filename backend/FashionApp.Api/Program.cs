@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using FashionApp.Api.Features.Digest;
 using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Features.Outfits;
 using FashionApp.Api.Features.Security;
@@ -120,6 +121,7 @@ app.MapGarmentConfirmEndpoint();
 app.MapGarmentReanalyzeEndpoint();
 app.MapOutfitEndpoints();
 app.MapOutfitSuggestEndpoint();
+app.MapDigestEndpoints();
 
 app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, DataPaths paths) =>
 {
