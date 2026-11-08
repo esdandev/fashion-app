@@ -95,7 +95,7 @@ public static class GarmentEndpoints
             await db.SaveChangesAsync(cancellationToken);
 
             return Results.Ok(GarmentQuery.ToDto(garment));
-        }).RequireToken().BlockWritesInDemo();
+        }).BlockWritesInDemo().RequireToken();
 
         group.MapDelete("/{id:guid}", async (
             Guid id,
@@ -118,7 +118,7 @@ public static class GarmentEndpoints
             await db.SaveChangesAsync(cancellationToken);
 
             return Results.NoContent();
-        }).RequireToken().BlockWritesInDemo();
+        }).BlockWritesInDemo().RequireToken();
 
         return app;
     }

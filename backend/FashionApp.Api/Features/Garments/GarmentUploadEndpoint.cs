@@ -21,8 +21,8 @@ public static class GarmentUploadEndpoint
     {
         app.MapPost("/api/garments", HandleAsync)
             .DisableAntiforgery()
-            .RequireToken()
-            .BlockWritesInDemo();
+            .BlockWritesInDemo()
+            .RequireToken();
 
         return app;
     }

@@ -17,8 +17,8 @@ public static class ReanalyzeEndpoint
     public static IEndpointRouteBuilder MapGarmentReanalyzeEndpoint(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/garments/{id:guid}/reanalyze", HandleAsync)
-            .RequireToken()
-            .BlockWritesInDemo();
+            .BlockWritesInDemo()
+            .RequireToken();
 
         return app;
     }

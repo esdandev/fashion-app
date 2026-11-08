@@ -1,4 +1,4 @@
-using FashionApp.Api.Domain;
+using System.Globalization;
 using FashionApp.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +26,7 @@ public static class QuotaResults
         var seconds = (int)Math.Ceiling((now.Date.AddDays(1) - now.UtcDateTime).TotalSeconds);
 
         context.Response.Headers["Retry-After"] =
-            Math.Max(1, seconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Math.Max(1, seconds).ToString(CultureInfo.InvariantCulture);
 
         return Results.Problem(
             statusCode: StatusCodes.Status429TooManyRequests,
@@ -37,12 +37,21 @@ public static class QuotaResults
 
 /// <summary>
 /// Enforces the per-day AI budget with a row per <c>(UTC date, kind)</c>.
-/// A denied request never increments the counter, so the limit is exact even
-/// when many requests arrive after it is exhausted.
+/// Consumption is a single conditional upsert, which SQLite executes atomically:
+/// concurrent requests can never both take the last unit and the denied path
+/// does not depend on a read-then-write snapshot. The existing 5 s busy timeout
+/// lets a writer wait for the lock instead of surfacing <c>SQLITE_BUSY</c>.
 /// </summary>
 public sealed class AiQuotaService(AppDbContext db, IConfiguration configuration) : IAiQuota
 {
     private const int DefaultDailyAnalysisLimit = 50;
+
+    private const string ConsumeSql = """
+        INSERT INTO "UsageCounters" ("Date", "Kind", "Count")
+        VALUES ({0}, {1}, 1)
+        ON CONFLICT ("Date", "Kind") DO UPDATE SET "Count" = "Count" + 1
+        WHERE "Count" < {2};
+        """;
 
     public async Task<bool> TryConsumeAsync(string kind, CancellationToken ct)
     {
@@ -50,31 +59,16 @@ public sealed class AiQuotaService(AppDbContext db, IConfiguration configuration
         if (limit <= 0)
             return false;
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow)
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // Rows affected: 1 when the row was inserted or incremented, 0 when the
+        // conditional update was skipped because the limit is already exhausted.
+        var affected = await db.Database.ExecuteSqlRawAsync(
+            ConsumeSql,
+            new object[] { today, kind, limit },
+            ct);
 
-        var counter = await db.UsageCounters
-            .FirstOrDefaultAsync(c => c.Date == today && c.Kind == kind, ct);
-
-        if (counter is null)
-        {
-            counter = new UsageCounter { Date = today, Kind = kind, Count = 1 };
-            db.UsageCounters.Add(counter);
-        }
-        else
-        {
-            if (counter.Count >= limit)
-            {
-                await transaction.RollbackAsync(ct);
-                return false;
-            }
-
-            counter.Count++;
-        }
-
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return true;
+        return affected > 0;
     }
 }
