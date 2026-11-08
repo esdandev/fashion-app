@@ -1,7 +1,9 @@
 import type {
   CreateGarmentResponse,
+  Garment,
   GarmentAnalysisProposal,
   GarmentListResponse,
+  PatchGarmentRequest,
   ProblemDetails,
 } from './types'
 
@@ -119,6 +121,30 @@ export const api = {
     )
 
     return parseResponse<GarmentAnalysisProposal>(response)
+  },
+
+  /**
+   * Persists the attributes the user confirmed. `POST /api/garments` creates the
+   * garment from the photo (and runs the analysis); this call applies the edits
+   * made in the confirmation form.
+   */
+  async patchGarment(
+    id: string,
+    patch: PatchGarmentRequest,
+  ): Promise<Garment> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/garments/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(patch),
+      },
+    )
+
+    return parseResponse<Garment>(response)
   },
 }
 

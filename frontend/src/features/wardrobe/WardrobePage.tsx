@@ -1,20 +1,20 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { ApiError, api } from '../../lib/api'
 import type { GarmentFiltersState } from '../../lib/types'
 import { GarmentCard, GarmentCardSkeleton } from './GarmentCard'
 import { GarmentFilters } from './GarmentFilters'
 import { buildGarmentQuery } from './garmentQueryString'
+import { UploadGarmentDialog } from './UploadGarmentDialog'
 
 const EMPTY_FILTERS: GarmentFiltersState = { category: '', season: '' }
 
-function UploadButton() {
+function UploadButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      disabled
-      title="La carga de prendas llega en la próxima entrega."
-      className="cursor-not-allowed rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white opacity-50"
+      onClick={onClick}
+      className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
     >
       Subir prenda
     </button>
@@ -40,6 +40,8 @@ function HangerIcon({ className }: { className?: string }) {
 
 export default function WardrobePage() {
   const [filters, setFilters] = useState<GarmentFiltersState>(EMPTY_FILTERS)
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const queryClient = useQueryClient()
   const hasFilters = Boolean(filters.category || filters.season)
 
   const garmentsQuery = useQuery({
@@ -68,7 +70,7 @@ export default function WardrobePage() {
             Todo lo que tenés, a mano y ordenado por categoría y temporada.
           </p>
         </div>
-        <UploadButton />
+        <UploadButton onClick={() => setIsUploadOpen(true)} />
       </div>
 
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -158,14 +160,23 @@ export default function WardrobePage() {
             </h2>
             <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
               Subí la foto de tu primera prenda y la IA se encarga de completar
-              categoría, color y temporada. La carga de fotos llega en la
-              próxima entrega.
+              categoría, color y temporada.
             </p>
             <div className="mt-4 flex justify-center">
-              <UploadButton />
+              <UploadButton onClick={() => setIsUploadOpen(true)} />
             </div>
           </div>
         ))}
+
+      {isUploadOpen && (
+        <UploadGarmentDialog
+          onClose={() => setIsUploadOpen(false)}
+          onSaved={() => {
+            setIsUploadOpen(false)
+            void queryClient.invalidateQueries({ queryKey: ['garments'] })
+          }}
+        />
+      )}
     </section>
   )
 }

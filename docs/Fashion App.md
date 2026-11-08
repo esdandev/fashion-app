@@ -430,3 +430,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | Demo pública definida como solo lectura, con prendas de ejemplo y sin llamadas a la IA. Datos personales solo en instancia local. |
 | 2026-11-07 | Diseño aprobado. Plan de implementación de la Fase 0–1 escrito en [[Fashion App - Plan Fase 0-1]]. |
 | 2026-11-07 | ImageSharp reemplazado por Magick.NET (Apache 2.0) porque la versión 4 bloquea el publish Release sin licencia. |
+| 2026-11-07 | Fase 1 cerrada: alta por foto con análisis IA, confirmación editable, reanálisis no destructivo, grilla con filtros y E2E del flujo crítico. |

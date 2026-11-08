@@ -20,5 +20,10 @@ En la instancia personal, guardá el token en `sessionStorage` con la clave
 
 - `pnpm dev` — servidor de desarrollo.
 - `pnpm test` — tests unitarios con Vitest.
+- `pnpm test:e2e` — flujo crítico con Playwright (requiere el backend fake en
+  `http://localhost:5210`; Vite lo levanta Playwright).
 - `pnpm build` — typecheck y build de producción.
 - `pnpm lint` — oxlint.
+
+La primera vez hay que instalar el navegador:
+`pnpm exec playwright install chromium`.

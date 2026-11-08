@@ -53,6 +53,16 @@ export interface CreateGarmentResponse {
   deduplicated: boolean
 }
 
+/** Mirrors `PatchGarmentRequest` on the API. Only sent fields are changed. */
+export interface PatchGarmentRequest {
+  name?: string
+  category?: GarmentCategory
+  colorName?: string
+  formality?: number
+  seasons?: Season[]
+  styleTags?: string[]
+}
+
 /** RFC 7807 payload the API returns for validation and auth errors. */
 export interface ProblemDetails {
   type?: string
