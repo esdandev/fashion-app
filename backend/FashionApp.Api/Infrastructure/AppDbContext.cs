@@ -7,6 +7,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 {
     public DbSet<Garment> Garments => Set<Garment>();
     public DbSet<Outfit> Outfits => Set<Outfit>();
+    public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -59,5 +60,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         outfit.Property(o => o.Rationale).HasMaxLength(600);
         outfit.HasIndex(o => o.CreatedAt);
         outfit.HasIndex(o => o.IsFavorite);
+
+        var usageCounter = modelBuilder.Entity<UsageCounter>();
+        usageCounter.ToTable("UsageCounters");
+        usageCounter.HasKey(c => new { c.Date, c.Kind });
+        usageCounter.Property(c => c.Kind).HasMaxLength(30).IsRequired();
     }
 }

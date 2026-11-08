@@ -1,7 +1,9 @@
 using System.Text.Json;
 using FashionApp.Api.Domain;
+using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Infrastructure.Quotas;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +20,9 @@ public static class GarmentUploadEndpoint
     public static IEndpointRouteBuilder MapGarmentUploadEndpoint(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/garments", HandleAsync)
-            .DisableAntiforgery();
+            .DisableAntiforgery()
+            .RequireToken()
+            .BlockWritesInDemo();
 
         return app;
     }
@@ -28,7 +32,9 @@ public static class GarmentUploadEndpoint
         AppDbContext db,
         IImageNormalizer normalizer,
         IGarmentAnalyzer analyzer,
+        IAiQuota quota,
         FileStorage storage,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
@@ -77,6 +83,11 @@ public static class GarmentUploadEndpoint
 
         if (existing is not null)
             return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(existing), true));
+
+        // Nothing is charged for a duplicate: the AI is not called for it. Every
+        // real analysis consumes one unit before touching the provider.
+        if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
+            return QuotaResults.TooManyRequests(httpContext);
 
         GarmentAnalysis analysis;
         try

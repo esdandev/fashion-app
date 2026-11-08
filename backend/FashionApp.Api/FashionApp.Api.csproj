@@ -11,6 +11,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Infrastructure/Demo/SeedAssets/*.webp"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="Infrastructure/Demo/SeedAssets/manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.1.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

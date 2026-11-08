@@ -1,7 +1,10 @@
 using System.Text.RegularExpressions;
 using FashionApp.Api.Features.Garments;
+using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Infrastructure.Demo;
+using FashionApp.Api.Infrastructure.Quotas;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +17,15 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseSqlite(builder.Configuration.GetConnectionString("Default")));
+
+builder.Services.AddSingleton(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    return new AppSecurityOptions(
+        configuration["App:Token"] ?? "",
+        configuration.GetValue("Demo:Enabled", false));
+});
+builder.Services.AddScoped<IAiQuota, AiQuotaService>();
 
 builder.Services.AddSingleton<IImageNormalizer, MagickImageNormalizer>();
 builder.Services.AddSingleton<FileStorage>();
@@ -81,6 +93,13 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     EnsureSqliteDirectory(db.Database.GetConnectionString());
     db.Database.Migrate();
+
+    if (app.Configuration.GetValue("Demo:Enabled", false))
+    {
+        await DemoSeeder.SeedAsync(
+            db,
+            app.Configuration["Storage:Root"] ?? "data/uploads");
+    }
 }
 
 app.Run();

@@ -1,5 +1,7 @@
+using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Infrastructure.Quotas;
 using Microsoft.EntityFrameworkCore;
 
 namespace FashionApp.Api.Features.Garments;
@@ -14,7 +16,9 @@ public static class ReanalyzeEndpoint
 {
     public static IEndpointRouteBuilder MapGarmentReanalyzeEndpoint(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/garments/{id:guid}/reanalyze", HandleAsync);
+        app.MapPost("/api/garments/{id:guid}/reanalyze", HandleAsync)
+            .RequireToken()
+            .BlockWritesInDemo();
 
         return app;
     }
@@ -23,7 +27,9 @@ public static class ReanalyzeEndpoint
         Guid id,
         AppDbContext db,
         IGarmentAnalyzer analyzer,
+        IAiQuota quota,
         IConfiguration configuration,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var garment = await db.Garments
@@ -50,6 +56,9 @@ public static class ReanalyzeEndpoint
         }
 
         var image = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+
+        if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
+            return QuotaResults.TooManyRequests(httpContext);
 
         GarmentAnalysis analysis;
         try

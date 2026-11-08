@@ -29,7 +29,7 @@ public sealed class FileStorage(IConfiguration configuration)
     /// the temporary file behind, never a truncated <c>{hash}.webp</c> that the
     /// immutable media cache would serve forever.
     /// </summary>
-    private static async Task WriteIfMissingAsync(string path, byte[] bytes, CancellationToken ct)
+    internal static async Task WriteIfMissingAsync(string path, byte[] bytes, CancellationToken ct)
     {
         if (File.Exists(path))
             return;

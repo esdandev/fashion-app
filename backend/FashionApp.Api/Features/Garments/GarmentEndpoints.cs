@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FashionApp.Api.Domain;
+using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +22,7 @@ public static class GarmentEndpoints
         {
             var query = GarmentQuery.Apply(db.Garments, category, color, season, cursor);
             return Results.Ok(await GarmentQuery.ToPageAsync(query, cancellationToken));
-        });
+        }).RequireToken();
 
         group.MapPatch("/{id:guid}", async (
             Guid id,
@@ -94,7 +95,7 @@ public static class GarmentEndpoints
             await db.SaveChangesAsync(cancellationToken);
 
             return Results.Ok(GarmentQuery.ToDto(garment));
-        });
+        }).RequireToken().BlockWritesInDemo();
 
         group.MapDelete("/{id:guid}", async (
             Guid id,
@@ -117,7 +118,7 @@ public static class GarmentEndpoints
             await db.SaveChangesAsync(cancellationToken);
 
             return Results.NoContent();
-        });
+        }).RequireToken().BlockWritesInDemo();
 
         return app;
     }

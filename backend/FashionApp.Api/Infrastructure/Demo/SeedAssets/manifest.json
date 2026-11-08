@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "note": "Placeholder demo assets generated programmatically with Magick.NET. They are deliberately generic and will be replaced by licensed stock photos before the portfolio deploy.",
+  "items": [
+    {
+      "name": "Camisa de lino blanca",
+      "category": "Top",
+      "colorName": "blanco",
+      "colorHex": "#F2EFE9",
+      "seasons": ["spring", "summer"],
+      "formality": 3,
+      "styleTags": ["minimalista", "clasico"],
+      "file": "01-camisa-lino.webp"
+    },
+    {
+      "name": "Camiseta de algodón negra",
+      "category": "Top",
+      "colorName": "negro",
+      "colorHex": "#1C1C1C",
+      "seasons": ["spring", "summer"],
+      "formality": 2,
+      "styleTags": ["casual", "minimalista"],
+      "file": "02-camiseta-negra.webp"
+    },
+    {
+      "name": "Suéter de lana gris",
+      "category": "Top",
+      "colorName": "gris",
+      "colorHex": "#8A8A8A",
+      "seasons": ["autumn", "winter"],
+      "formality": 3,
+      "styleTags": ["clasico", "texturado"],
+      "file": "03-sueter-gris.webp"
+    },
+    {
+      "name": "Jeans rectos azul",
+      "category": "Bottom",
+      "colorName": "azul",
+      "colorHex": "#3B5A82",
+      "seasons": ["spring", "autumn", "winter"],
+      "formality": 2,
+      "styleTags": ["casual", "noventoso"],
+      "file": "04-jeans-azul.webp"
+    },
+    {
+      "name": "Pantalón sastre beige",
+      "category": "Bottom",
+      "colorName": "beige",
+      "colorHex": "#C9B79C",
+      "seasons": ["spring", "summer", "autumn"],
+      "formality": 4,
+      "styleTags": ["formal", "entallado"],
+      "file": "05-pantalon-beige.webp"
+    },
+    {
+      "name": "Vestido midi floreado",
+      "category": "Dress",
+      "colorName": "floreado",
+      "colorHex": "#B96A7B",
+      "seasons": ["spring", "summer"],
+      "formality": 3,
+      "styleTags": ["romantico", "bohemio"],
+      "file": "06-vestido-floral.webp"
+    },
+    {
+      "name": "Vestido negro de noche",
+      "category": "Dress",
+      "colorName": "negro",
+      "colorHex": "#202020",
+      "seasons": ["autumn", "winter"],
+      "formality": 5,
+      "styleTags": ["formal", "monocromatico"],
+      "file": "07-vestido-negro.webp"
+    },
+    {
+      "name": "Trench coat camel",
+      "category": "Outerwear",
+      "colorName": "camel",
+      "colorHex": "#B58B5A",
+      "seasons": ["spring", "autumn"],
+      "formality": 4,
+      "styleTags": ["clasico", "capas"],
+      "file": "08-trench-camel.webp"
+    },
+    {
+      "name": "Campera de jean",
+      "category": "Outerwear",
+      "colorName": "azul claro",
+      "colorHex": "#6E8FB5",
+      "seasons": ["spring", "autumn"],
+      "formality": 2,
+      "styleTags": ["casual", "vintage"],
+      "file": "09-campera-jean.webp"
+    },
+    {
+      "name": "Zapatillas blancas",
+      "category": "Shoes",
+      "colorName": "blanco",
+      "colorHex": "#EDEDED",
+      "seasons": ["spring", "summer", "autumn"],
+      "formality": 2,
+      "styleTags": ["deportivo", "casual"],
+      "file": "10-zapatillas-blancas.webp"
+    },
+    {
+      "name": "Botas de cuero marrón",
+      "category": "Shoes",
+      "colorName": "marrón",
+      "colorHex": "#6B4A2F",
+      "seasons": ["autumn", "winter"],
+      "formality": 4,
+      "styleTags": ["clasico", "texturado"],
+      "file": "11-botas-marron.webp"
+    },
+    {
+      "name": "Bolso tote de cuero",
+      "category": "Bag",
+      "colorName": "marrón",
+      "colorHex": "#7A5230",
+      "seasons": ["spring", "summer", "autumn", "winter"],
+      "formality": 3,
+      "styleTags": ["minimalista", "clasico"],
+      "file": "12-bolso-tote.webp"
+    },
+    {
+      "name": "Cartera mini negra",
+      "category": "Bag",
+      "colorName": "negro",
+      "colorHex": "#242424",
+      "seasons": ["autumn", "winter"],
+      "formality": 3,
+      "styleTags": ["formal", "entallado"],
+      "file": "13-cartera-negra.webp"
+    },
+    {
+      "name": "Pañuelo de seda rojo",
+      "category": "Accessory",
+      "colorName": "rojo",
+      "colorHex": "#A63A3A",
+      "seasons": ["spring", "summer"],
+      "formality": 3,
+      "styleTags": ["colorido", "romantico"],
+      "file": "14-panuelo-seda.webp"
+    }
+  ]
+}
