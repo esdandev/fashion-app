@@ -57,7 +57,7 @@ public static class ReanalyzeEndpoint
         var image = await File.ReadAllBytesAsync(imagePath, cancellationToken);
 
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
-            return QuotaResults.TooManyRequests(httpContext);
+            return QuotaResults.TooManyRequests(httpContext, AiQuotaKinds.Analysis);
 
         GarmentAnalysis analysis;
         try

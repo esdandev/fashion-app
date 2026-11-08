@@ -58,7 +58,7 @@ public static class GarmentUploadEndpoint
         // Nothing is charged for a duplicate: the AI is not called for it. Every
         // real analysis consumes one unit before touching the provider.
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
-            return QuotaResults.TooManyRequests(httpContext);
+            return QuotaResults.TooManyRequests(httpContext, AiQuotaKinds.Analysis);
 
         GarmentAnalysis analysis;
         try

@@ -1,9 +1,9 @@
 namespace FashionApp.Api.Domain;
 
 /// <summary>
-/// Daily usage counter for cost-controlled operations (currently only AI
-/// analysis). The composite key is <c>(Date, Kind)</c>; <c>Date</c> is always a
-/// UTC calendar date.
+/// Daily usage counter for cost-controlled operations (AI analysis and outfit
+/// suggestions). The composite key is <c>(Date, Kind)</c>; <c>Date</c> is always
+/// a UTC calendar date.
 /// </summary>
 public sealed class UsageCounter
 {

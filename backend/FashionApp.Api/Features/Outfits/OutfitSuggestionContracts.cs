@@ -32,3 +32,15 @@ public sealed record OutfitDraft(
     Guid[] GarmentIds,
     string? Occasion,
     string Rationale);
+
+/// <summary>
+/// Request body for <c>POST /api/outfits/suggest</c>. The weather is validated by
+/// the suggestion service; a missing or unknown value maps to a <c>400</c>.
+/// </summary>
+public sealed record SuggestOutfitsRequest(string? Occasion, string? Weather);
+
+/// <summary>
+/// Response envelope for <c>POST /api/outfits/suggest</c>. Drafts are not
+/// persisted: the client decides which ones to save through the manual CRUD.
+/// </summary>
+public sealed record SuggestOutfitsResponse(IReadOnlyList<OutfitDraft> Outfits);

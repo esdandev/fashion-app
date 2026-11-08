@@ -65,7 +65,7 @@ public static class GarmentAnalyzeEndpoint
         }
 
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
-            return QuotaResults.TooManyRequests(httpContext);
+            return QuotaResults.TooManyRequests(httpContext, AiQuotaKinds.Analysis);
 
         GarmentAnalysis analysis;
         try

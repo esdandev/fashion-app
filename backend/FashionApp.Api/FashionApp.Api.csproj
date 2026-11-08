@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Infrastructure/Ai/Prompts/garment-analysis.md" />
+    <EmbeddedResource Include="Infrastructure/Ai/Prompts/outfit-suggestions.md" />
   </ItemGroup>
 
   <ItemGroup>

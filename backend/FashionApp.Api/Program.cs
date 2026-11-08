@@ -32,6 +32,9 @@ builder.Services.AddSingleton(sp =>
         configuration.GetValue("Demo:Enabled", false));
 });
 builder.Services.AddScoped<IAiQuota, AiQuotaService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<RuleBasedOutfitSuggester>();
+builder.Services.AddScoped<IOutfitSuggestionService, OutfitSuggestionService>();
 
 builder.Services.AddSingleton<IImageNormalizer, MagickImageNormalizer>();
 builder.Services.AddSingleton<FileStorage>();
@@ -55,10 +58,12 @@ if (aiProvider.Equals("gemini", StringComparison.OrdinalIgnoreCase))
     }
 
     builder.Services.AddHttpClient<IGarmentAnalyzer, GeminiGarmentAnalyzer>();
+    builder.Services.AddHttpClient<IOutfitSuggester, GeminiOutfitSuggester>();
 }
 else if (usingFakeProvider)
 {
     builder.Services.AddSingleton<IGarmentAnalyzer, FakeGarmentAnalyzer>();
+    builder.Services.AddSingleton<IOutfitSuggester, FakeOutfitSuggester>();
 }
 else
 {
@@ -107,6 +112,7 @@ app.MapGarmentAnalyzeEndpoint();
 app.MapGarmentConfirmEndpoint();
 app.MapGarmentReanalyzeEndpoint();
 app.MapOutfitEndpoints();
+app.MapOutfitSuggestEndpoint();
 
 app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, DataPaths paths) =>
 {

@@ -12,15 +12,17 @@ public interface IAiQuota
 public static class AiQuotaKinds
 {
     public const string Analysis = "analysis";
+    public const string Suggestion = "suggestion";
 }
 
 public static class QuotaResults
 {
     /// <summary>
     /// Builds the <c>429</c> response with a <c>Retry-After</c> in seconds that
-    /// tells the client when the UTC counter resets at midnight.
+    /// tells the client when the UTC counter resets at midnight. The message
+    /// names the exhausted budget (<c>análisis</c> or <c>sugerencias</c>).
     /// </summary>
-    public static IResult TooManyRequests(HttpContext context)
+    public static IResult TooManyRequests(HttpContext context, string kind)
     {
         var now = DateTimeOffset.UtcNow;
         var seconds = (int)Math.Ceiling((now.Date.AddDays(1) - now.UtcDateTime).TotalSeconds);
@@ -28,10 +30,11 @@ public static class QuotaResults
         context.Response.Headers["Retry-After"] =
             Math.Max(1, seconds).ToString(CultureInfo.InvariantCulture);
 
+        var budget = kind == AiQuotaKinds.Suggestion ? "sugerencias" : "análisis";
         return Results.Problem(
             statusCode: StatusCodes.Status429TooManyRequests,
             title: "Cuota diaria agotada",
-            detail: "Se alcanzó el límite de análisis de IA para hoy (UTC).");
+            detail: $"Se alcanzó el límite de {budget} de IA para hoy (UTC).");
     }
 }
 
@@ -45,6 +48,7 @@ public static class QuotaResults
 public sealed class AiQuotaService(AppDbContext db, IConfiguration configuration) : IAiQuota
 {
     private const int DefaultDailyAnalysisLimit = 50;
+    private const int DefaultDailySuggestionLimit = 20;
 
     private const string ConsumeSql = """
         INSERT INTO "UsageCounters" ("Date", "Kind", "Count")
@@ -55,7 +59,7 @@ public sealed class AiQuotaService(AppDbContext db, IConfiguration configuration
 
     public async Task<bool> TryConsumeAsync(string kind, CancellationToken ct)
     {
-        var limit = configuration.GetValue("Ai:DailyAnalysisLimit", DefaultDailyAnalysisLimit);
+        var limit = ResolveLimit(kind);
         if (limit <= 0)
             return false;
 
@@ -71,4 +75,11 @@ public sealed class AiQuotaService(AppDbContext db, IConfiguration configuration
 
         return affected > 0;
     }
+
+    private int ResolveLimit(string kind) => kind switch
+    {
+        AiQuotaKinds.Suggestion => configuration.GetValue(
+            "Ai:DailySuggestionLimit", DefaultDailySuggestionLimit),
+        _ => configuration.GetValue("Ai:DailyAnalysisLimit", DefaultDailyAnalysisLimit)
+    };
 }
