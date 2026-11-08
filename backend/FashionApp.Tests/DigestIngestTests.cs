@@ -77,6 +77,32 @@ public sealed class DigestIngestTests
     }
 
     [Fact]
+    public void Validator_drops_drafts_with_a_blank_title_or_summary()
+    {
+        var sources = new[]
+        {
+            Entry("Sin titulo", "https://example.com/no-title"),
+            Entry("Sin resumen", "https://example.com/no-summary"),
+            Entry("Completa", "https://example.com/complete")
+        };
+        var summary = new DigestSummary(null, [
+            new DigestDraft("   ", "https://example.com/no-title", "Vogue", "Resumen válido.",
+                ["casual"], null, null),
+            new DigestDraft("Sin resumen", "https://example.com/no-summary", "Vogue", "  ",
+                ["casual"], null, null),
+            new DigestDraft("Completa", "https://example.com/complete", "Vogue", "Resumen válido.",
+                ["casual"], null, null)
+        ]);
+
+        var clean = DigestValidator.Clean(summary, sources, maxItems: 10);
+
+        var item = Assert.Single(clean.Items);
+        Assert.Equal("https://example.com/complete", item.Url);
+        Assert.Equal("Completa", item.Title);
+        Assert.Equal("Resumen válido.", item.Summary);
+    }
+
+    [Fact]
     public void Validator_drops_drafts_without_a_single_valid_tag()
     {
         var sources = new[]

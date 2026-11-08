@@ -43,6 +43,13 @@ public static class DigestValidator
             if (url.Length == 0 || !sourceUrls.Contains(url))
                 continue;
 
+            // A link-only or headline-only card contradicts the product: every
+            // note needs both its title and its own summary.
+            var title = TrimTo(draft.Title, MaxTitleLength);
+            var itemSummary = TrimTo(draft.Summary, MaxSummaryLength);
+            if (title.Length == 0 || itemSummary.Length == 0)
+                continue;
+
             if (!seenUrls.Add(url))
                 continue;
 
@@ -53,10 +60,10 @@ public static class DigestValidator
                 continue;
 
             kept.Add(new DigestDraft(
-                Title: TrimTo(draft.Title, MaxTitleLength),
+                Title: title,
                 Url: url,
                 Source: TrimTo(draft.Source, MaxSourceLength),
-                Summary: TrimTo(draft.Summary, MaxSummaryLength),
+                Summary: itemSummary,
                 StyleTags: tags,
                 ImageUrl: string.IsNullOrWhiteSpace(draft.ImageUrl)
                     ? null

@@ -38,6 +38,15 @@ public static class DemoSeeder
         string uploadsRoot,
         CancellationToken ct = default)
     {
+        await SeedWardrobeAsync(db, uploadsRoot, ct);
+        await SeedDigestAsync(db, ct);
+    }
+
+    private static async Task SeedWardrobeAsync(
+        AppDbContext db,
+        string uploadsRoot,
+        CancellationToken ct)
+    {
         if (await db.Garments.AnyAsync(ct))
             return;
 
@@ -91,6 +100,77 @@ public static class DemoSeeder
 
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Seeds a deterministic sample digest whenever the table is empty. It has
+    /// its own guard because the demo must show "Hoy" even when the wardrobe was
+    /// seeded (or preserved) separately. No feed, AI provider or network call is
+    /// involved.
+    /// </summary>
+    private static async Task SeedDigestAsync(AppDbContext db, CancellationToken ct)
+    {
+        if (await db.Digests.AnyAsync(ct))
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+        var digest = new Digest
+        {
+            Id = Guid.NewGuid(),
+            Date = DateOnly.FromDateTime(now.UtcDateTime),
+            Summary = "Una selección de las noticias de moda y tendencias más relevantes de hoy.",
+            GeneratedAt = now
+        };
+
+        for (var index = 0; index < SampleDigestItems.Length; index++)
+        {
+            var item = SampleDigestItems[index];
+            digest.Items.Add(new DigestItem
+            {
+                Id = Guid.NewGuid(),
+                DigestId = digest.Id,
+                Title = item.Title,
+                Url = item.Url,
+                Source = item.Source,
+                Summary = item.Summary,
+                StyleTagsJson = JsonSerializer.Serialize(item.StyleTags),
+                ImageUrl = null,
+                PublishedAt = now.AddHours(-(index + 1)),
+                SortOrder = index
+            });
+        }
+
+        db.Digests.Add(digest);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static readonly (string Title, string Url, string Source, string Summary, string[] StyleTags)[]
+        SampleDigestItems =
+        [
+            ("Tendencias de otoño: capas y texturas", "https://example.com/nota-1", "Vogue",
+                "Las claves de la temporada, de los abrigos largos a los tejidos cálidos.",
+                ["capas", "texturado"]),
+            ("Cómo combinar denim en clave minimalista", "https://example.com/nota-2", "Elle",
+                "Tres fórmulas simples para usar jean todo el año sin recargar el look.",
+                ["minimalista", "casual"]),
+            ("Los accesorios que ordenan un outfit", "https://example.com/nota-3", "Harper's Bazaar",
+                "Cinturones, bolsos y joyería para dar intención a lo básico.",
+                ["clasico", "entallado"]),
+            ("Calzado cómodo para la ciudad", "https://example.com/nota-4", "Glamour",
+                "Zapatillas y botas que acompañan jornadas largas sin perder estilo.",
+                ["casual", "deportivo"]),
+            ("Paleta neutra: beige, gris y blanco", "https://example.com/nota-5", "Vogue",
+                "Una guía para construir un guardarropa monocromático que siempre funciona.",
+                ["monocromatico", "minimalista"]),
+            ("El regreso del traje oversized", "https://example.com/nota-6", "GQ",
+                "Siluetas amplias y sastrería relajada para el trabajo y el fin de semana.",
+                ["formal", "oversized"]),
+            ("Texturas de invierno sin perder liviandad", "https://example.com/nota-7", "Elle",
+                "Lana, seda y punto para sumar abrigo sin volumen innecesario.",
+                ["texturado", "clasico"]),
+            ("Looks de fin de semana en tres pasos", "https://example.com/nota-8", "Harper's Bazaar",
+                "Prendas versátiles para pasar del desayuno a una salida nocturna.",
+                ["casual", "romantico"])
+        ];
 
     /// <summary>
     /// Refuses to start a demo that points at a database with rows outside the

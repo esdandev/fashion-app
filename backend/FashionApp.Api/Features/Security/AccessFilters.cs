@@ -71,7 +71,7 @@ public static class AccessFilters
             return ValueTask.FromResult<object?>(Results.Problem(
                 statusCode: StatusCodes.Status403Forbidden,
                 title: "Modo demo",
-                detail: "La demo pública es de solo lectura: no se pueden modificar prendas."));
+                detail: "La demo pública es de solo lectura: no se pueden hacer cambios."));
         }
 
         return next(context);

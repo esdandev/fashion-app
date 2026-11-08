@@ -77,11 +77,13 @@ luego repite todos los días a `DIGEST__RUNAT` (07:00, hora local del servidor).
 
 Para forzar una regeneración manual del digest de hoy:
 
-```bash
-curl -X POST http://localhost:5210/api/digest/refresh \
-  -H "X-Admin-Secret: $DIGEST_ADMIN_SECRET"
+```powershell
+curl.exe -X POST http://localhost:5210/api/digest/refresh `
+  -H "X-Admin-Secret: $env:DIGEST__ADMINSECRET"
 ```
 
+En PowerShell la variable es `$env:DIGEST__ADMINSECRET`: el nombre de la clave
+usa doble guion bajo (`Digest:AdminSecret` en `appsettings`).
 `DIGEST__ADMINSECRET` debe estar definido; sin secreto el endpoint responde
 `401`, con un secreto distinto `403` y, si ya se generó en la última hora, `429`
 con `Retry-After`. Un fallo de feeds/IA devuelve `502` y conserva el digest
@@ -207,16 +209,18 @@ dotnet run --project backend/FashionApp.Api
 ```
 
 - Siembra 14 prendas de ejemplo desde
-  `backend/FashionApp.Api/Infrastructure/Demo/SeedAssets/manifest.json`.
+  `backend/FashionApp.Api/Infrastructure/Demo/SeedAssets/manifest.json` y un
+  digest de muestra de 8 notas con etiquetas de estilo, sin feeds ni IA.
 - Usa una raíz propia: `data/demo` por defecto (base `data/demo/fashion.db` y
   uploads `data/demo/uploads`). Nunca comparte `data/fashion.db` ni
   `data/uploads` con la instancia personal.
 - Al arrancar verifica que todas las prendas de la base pertenezcan al manifiesto
   de demo; si encuentra una prenda personal, se niega a arrancar con un error en
   español.
-- Solo siembra si la tabla de prendas está vacía: reiniciar no duplica nada.
+- El guardarropa y el digest se siembran solo si su tabla está vacía: reiniciar
+  no duplica nada y el digest sembrado es independiente del guardarropa.
 - En demo, la UI y el backend son de solo lectura (las escrituras devuelven
-  `403`) y no se llama a la IA.
+  `403`), el job diario no arranca y no se llama a la IA.
 - Para volver al estado inicial: detené el backend y borrá **solo**
   `data/demo/`. No borres `data/` completo: ahí vive tu base personal.
 

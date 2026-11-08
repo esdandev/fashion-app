@@ -165,12 +165,90 @@ public sealed class DigestGeneratorTests : IDisposable
         Assert.Empty(await db.DigestItems.ToListAsync());
     }
 
+    [Fact]
+    public async Task A_null_summary_keeps_the_previous_digest_summary()
+    {
+        await SeedExistingDigest();
+        var generator = Build(
+            feeds: [Entry("Nota nueva", "https://example.com/nueva")],
+            drafts: 1,
+            nullSummary: true);
+
+        var digest = await generator.GenerateAsync(default);
+
+        Assert.NotNull(digest);
+        Assert.Equal("Anterior", digest!.Summary);
+
+        await using var db = NewDb();
+        Assert.Equal("Anterior", (await db.Digests.SingleAsync()).Summary);
+    }
+
+    [Fact]
+    public async Task A_null_summary_on_a_new_digest_uses_a_generic_intro()
+    {
+        var generator = Build(
+            feeds: [Entry("Nota nueva", "https://example.com/nueva")],
+            drafts: 1,
+            nullSummary: true);
+
+        var digest = await generator.GenerateAsync(default);
+
+        Assert.NotNull(digest);
+        Assert.Equal(DigestGenerator.DefaultSummary, digest!.Summary);
+        Assert.False(string.IsNullOrWhiteSpace(digest.Summary));
+    }
+
+    [Fact]
+    public async Task A_broken_feed_does_not_discard_the_healthy_feed()
+    {
+        var healthy = new FeedSource("Sana", "https://feed.test/healthy");
+        var broken = new FeedSource("Rota", "https://feed.test/broken");
+        var generator = Build(
+            feeds: [],
+            drafts: 10,
+            sources: [healthy, broken],
+            fetcher: new PerSourceFeedFetcher(
+                broken.Url,
+                healthyEntries: [Entry("Nota sana", "https://example.com/sana")],
+                healthyUrl: healthy.Url));
+
+        var digest = await generator.GenerateAsync(default);
+
+        Assert.NotNull(digest);
+        var item = Assert.Single(digest!.Items);
+        Assert.Equal("Nota sana", item.Title);
+        Assert.Equal("https://example.com/sana", item.Url);
+    }
+
+    [Fact]
+    public async Task The_summarizer_never_receives_more_than_twenty_entries()
+    {
+        var feeds = Enumerable.Range(0, 25)
+            .Select(index => Entry(
+                $"Nota {index}",
+                $"https://example.com/{index}",
+                Now.AddMinutes(-index)))
+            .ToArray();
+        var summarizer = new StubSummarizer(maxDrafts: 10);
+        var generator = Build(feeds: feeds, drafts: 10, summarizer: summarizer);
+
+        var digest = await generator.GenerateAsync(default);
+
+        Assert.NotNull(digest);
+        Assert.Equal(20, summarizer.ReceivedCount);
+        Assert.Equal(10, digest!.Items.Count);
+    }
+
     private DigestGenerator Build(
         IReadOnlyList<FeedEntry> feeds,
         int drafts,
         string? summary = null,
         int itemSummaryLength = 0,
-        string environmentName = "Testing")
+        string environmentName = "Testing",
+        bool nullSummary = false,
+        IReadOnlyList<FeedSource>? sources = null,
+        IFeedFetcher? fetcher = null,
+        StubSummarizer? summarizer = null)
     {
         var values = new Dictionary<string, string?>
         {
@@ -178,10 +256,15 @@ public sealed class DigestGeneratorTests : IDisposable
             ["Digest:MaxAgeHours"] = "48",
         };
 
-        if (feeds.Count > 0)
+        var configuredSources = sources
+            ?? (feeds.Count > 0
+                ? [new FeedSource("Vogue", "https://feed.test/rss")]
+                : []);
+
+        for (var index = 0; index < configuredSources.Count; index++)
         {
-            values["Digest:Feeds:0:Name"] = "Vogue";
-            values["Digest:Feeds:0:Url"] = "https://feed.test/rss";
+            values[$"Digest:Feeds:{index}:Name"] = configuredSources[index].Name;
+            values[$"Digest:Feeds:{index}:Url"] = configuredSources[index].Url;
         }
 
         var configuration = new ConfigurationBuilder()
@@ -189,8 +272,8 @@ public sealed class DigestGeneratorTests : IDisposable
             .Build();
 
         return new DigestGenerator(
-            new StubFeedFetcher(feeds),
-            new StubSummarizer(drafts, summary, itemSummaryLength),
+            fetcher ?? new StubFeedFetcher(feeds),
+            summarizer ?? new StubSummarizer(drafts, summary, itemSummaryLength, nullSummary),
             NewDb(),
             configuration,
             new StubEnvironment(environmentName),
@@ -248,16 +331,38 @@ public sealed class DigestGeneratorTests : IDisposable
         }
     }
 
+    private sealed class PerSourceFeedFetcher(
+        string brokenUrl,
+        IReadOnlyList<FeedEntry> healthyEntries,
+        string healthyUrl) : IFeedFetcher
+    {
+        public Task<IReadOnlyList<FeedEntry>> FetchAsync(FeedSource source, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (string.Equals(source.Url, brokenUrl, StringComparison.Ordinal))
+                throw new HttpRequestException("El feed no está disponible.");
+
+            return Task.FromResult(string.Equals(source.Url, healthyUrl, StringComparison.Ordinal)
+                ? healthyEntries
+                : (IReadOnlyList<FeedEntry>)[]);
+        }
+    }
+
     private sealed class StubSummarizer(
         int maxDrafts,
-        string? summary,
-        int itemSummaryLength) : IDigestSummarizer
+        string? summary = null,
+        int itemSummaryLength = 0,
+        bool nullSummary = false) : IDigestSummarizer
     {
+        public int ReceivedCount { get; private set; }
+
         public Task<DigestSummary> SummarizeAsync(
             IReadOnlyList<FeedEntry> entries,
             CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
+            ReceivedCount = entries.Count;
 
             var drafts = entries
                 .Take(maxDrafts)
@@ -273,7 +378,9 @@ public sealed class DigestGeneratorTests : IDisposable
                     PublishedAt: entry.PublishedAt))
                 .ToList();
 
-            return Task.FromResult(new DigestSummary(summary ?? "Resumen de prueba", drafts));
+            return Task.FromResult(new DigestSummary(
+                nullSummary ? null : summary ?? "Resumen de prueba",
+                drafts));
         }
     }
 

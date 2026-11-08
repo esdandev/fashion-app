@@ -38,6 +38,13 @@ public sealed class DigestGenerator(
     public const int DefaultMaxAgeHours = 48;
     public const int MaxEntriesForSummary = 20;
 
+    /// <summary>
+    /// Used when the model omits the editorial intro and there is no previous
+    /// digest to inherit it from. The card must never render an empty summary.
+    /// </summary>
+    public const string DefaultSummary =
+        "Una selección de las noticias de moda y tendencias más relevantes de hoy.";
+
     private static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(15);
 
     // Only used in Development when Digest:Feeds is empty: the demo must work
@@ -232,6 +239,7 @@ public sealed class DigestGenerator(
         var digest = await db.Digests
             .FirstOrDefaultAsync(row => row.Date == date, ct);
 
+        var isNew = digest is null;
         if (digest is null)
         {
             digest = new DigestEntity
@@ -254,7 +262,13 @@ public sealed class DigestGenerator(
             digest.Items = [];
         }
 
-        digest.Summary = clean.Summary ?? "";
+        // A model omission must not erase a good intro: keep the previous
+        // summary, or fall back to a generic Spanish one for a new digest.
+        if (!string.IsNullOrWhiteSpace(clean.Summary))
+            digest.Summary = clean.Summary;
+        else if (isNew || string.IsNullOrWhiteSpace(digest.Summary))
+            digest.Summary = DefaultSummary;
+
         digest.GeneratedAt = now;
 
         var newItems = new List<DigestItem>(clean.Items.Count);

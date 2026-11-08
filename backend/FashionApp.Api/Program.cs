@@ -108,7 +108,18 @@ else
 
 builder.Services.AddScoped<IDigestGenerator, DigestGenerator>();
 builder.Services.AddSingleton<DigestRefreshGuard>();
-builder.Services.AddHostedService<DigestBackgroundService>();
+
+// The public demo is a zero-cost, read-only snapshot: it must never start the
+// daily job (which would fetch feeds and call the AI). The check runs at
+// resolution time so WebApplicationFactory's in-memory Demo:Enabled override is
+// already part of the final configuration.
+builder.Services.AddSingleton<IHostedService>(sp =>
+{
+    if (sp.GetRequiredService<IConfiguration>().GetValue("Demo:Enabled", false))
+        return new NoopHostedService();
+
+    return ActivatorUtilities.CreateInstance<DigestBackgroundService>(sp);
+});
 
 var app = builder.Build();
 
