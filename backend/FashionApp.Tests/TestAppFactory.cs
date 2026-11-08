@@ -20,6 +20,7 @@ public sealed class TestAppFactory : WebApplicationFactory<Program>
             {
                 ["App:Token"] = Token,
                 ["Demo:Enabled"] = Demo.ToString(),
+                ["Digest:Provider"] = "fake",
                 ["Storage:Root"] = UploadsPath,
                 ["ConnectionStrings:Default"] = $"Data Source={DbPath}"
             });

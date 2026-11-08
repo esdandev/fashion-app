@@ -46,12 +46,18 @@ public static class DigestValidator
             if (!seenUrls.Add(url))
                 continue;
 
+            // "deja 1–3": a draft without a single vocabulary tag cannot relate
+            // to the wardrobe and is discarded like an unknown URL.
+            var tags = CleanTags(draft.StyleTags);
+            if (tags.Length == 0)
+                continue;
+
             kept.Add(new DigestDraft(
                 Title: TrimTo(draft.Title, MaxTitleLength),
                 Url: url,
                 Source: TrimTo(draft.Source, MaxSourceLength),
                 Summary: TrimTo(draft.Summary, MaxSummaryLength),
-                StyleTags: CleanTags(draft.StyleTags),
+                StyleTags: tags,
                 ImageUrl: string.IsNullOrWhiteSpace(draft.ImageUrl)
                     ? null
                     : draft.ImageUrl.Trim(),
@@ -73,8 +79,8 @@ public static class DigestValidator
 
     /// <summary>
     /// Keeps only vocabulary tags, normalizes them to the canonical lowercase
-    /// form, removes duplicates and caps the list at three. An item with no
-    /// valid tags is still useful as news, so it is not dropped.
+    /// form, removes duplicates and caps the list at three. An item without at
+    /// least one valid tag is rejected by <see cref="Clean"/>.
     /// </summary>
     private static string[] CleanTags(string[]? tags)
     {

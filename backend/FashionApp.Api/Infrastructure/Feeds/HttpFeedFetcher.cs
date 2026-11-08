@@ -50,17 +50,18 @@ public sealed class HttpFeedFetcher : IFeedFetcher
                 .ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
-            var xml = await response.Content
-                .ReadAsStringAsync(ct)
+            // Parse from the raw byte stream so the XML declaration's encoding
+            // is honored; reading into a .NET string first would silently use
+            // the response charset/UTF-8 and corrupt Latin-1 feeds.
+            using var stream = await response.Content
+                .ReadAsStreamAsync(ct)
                 .ConfigureAwait(false);
-
-            using var text = new StringReader(xml);
-            using var reader = XmlReader.Create(text, new XmlReaderSettings
+            using var reader = XmlReader.Create(stream, new XmlReaderSettings
             {
                 DtdProcessing = DtdProcessing.Prohibit
             });
             // The package exposes only the synchronous Load(XmlReader); the
-            // network read above is already asynchronous.
+            // network read above is already asynchronous and buffered.
             var feed = SyndicationFeed.Load(reader);
             if (feed is null)
                 return [];

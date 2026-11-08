@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FashionApp.Api.Features.Digest;
@@ -61,25 +62,43 @@ public sealed class DigestIngestTests
     }
 
     [Fact]
-    public void Validator_caps_valid_tags_at_three_and_keeps_an_item_without_tags()
+    public void Validator_caps_valid_tags_at_three()
     {
-        var sources = new[]
-        {
-            Entry("Con muchos tags", "https://example.com/tags"),
-            Entry("Sin tags validos", "https://example.com/no-tags")
-        };
+        var sources = new[] { Entry("Con muchos tags", "https://example.com/tags") };
         var summary = new DigestSummary(null, [
             new DigestDraft("Con muchos tags", "https://example.com/tags", "Vogue", "S",
-                ["casual", "minimalista", "streetwear", "formal"], null, null),
-            new DigestDraft("Sin tags validos", "https://example.com/no-tags", "Vogue", "S",
-                ["inventado", "otro"], null, null)
+                ["casual", "minimalista", "streetwear", "formal"], null, null)
         ]);
 
         var clean = DigestValidator.Clean(summary, sources, maxItems: 10);
 
-        Assert.Equal(2, clean.Items.Count);
-        Assert.Equal(["casual", "minimalista", "streetwear"], clean.Items[0].StyleTags);
-        Assert.Empty(clean.Items[1].StyleTags);
+        var item = Assert.Single(clean.Items);
+        Assert.Equal(["casual", "minimalista", "streetwear"], item.StyleTags);
+    }
+
+    [Fact]
+    public void Validator_drops_drafts_without_a_single_valid_tag()
+    {
+        var sources = new[]
+        {
+            Entry("Con tag valido", "https://example.com/valid"),
+            Entry("Sin tags validos", "https://example.com/no-tags"),
+            Entry("Sin tags", "https://example.com/empty-tags")
+        };
+        var summary = new DigestSummary(null, [
+            new DigestDraft("Con tag valido", "https://example.com/valid", "Vogue", "S",
+                ["casual"], null, null),
+            new DigestDraft("Sin tags validos", "https://example.com/no-tags", "Vogue", "S",
+                ["inventado", "otro"], null, null),
+            new DigestDraft("Sin tags", "https://example.com/empty-tags", "Vogue", "S",
+                [], null, null)
+        ]);
+
+        var clean = DigestValidator.Clean(summary, sources, maxItems: 10);
+
+        var item = Assert.Single(clean.Items);
+        Assert.Equal("https://example.com/valid", item.Url);
+        Assert.Equal(["casual"], item.StyleTags);
     }
 
     // ---- Feed fetchers ---------------------------------------------------
@@ -162,6 +181,34 @@ public sealed class DigestIngestTests
         Assert.Equal("Elle", entry.Source);
         Assert.Equal("Resumen atom.", entry.Summary);
         Assert.Equal(new DateTimeOffset(2026, 11, 8, 8, 0, 0, TimeSpan.Zero), entry.PublishedAt);
+    }
+
+    [Fact]
+    public async Task Http_feed_fetcher_honors_the_xml_declaration_encoding()
+    {
+        const string rss = """
+            <?xml version="1.0" encoding="ISO-8859-1"?>
+            <rss version="2.0">
+              <channel>
+                <title>Vogue España</title>
+                <item>
+                  <title>Otoño cálido</title>
+                  <link>https://example.com/otono</link>
+                  <description>Algodón, lino y accesorios para la temporada.</description>
+                </item>
+              </channel>
+            </rss>
+            """;
+        var fetcher = new HttpFeedFetcher(
+            new HttpClient(new BytesHttpHandler(Encoding.Latin1.GetBytes(rss))));
+
+        var entries = await fetcher.FetchAsync(
+            new FeedSource("Vogue", "https://feed.test/latin1"),
+            default);
+
+        var entry = Assert.Single(entries);
+        Assert.Equal("Otoño cálido", entry.Title);
+        Assert.Equal("Algodón, lino y accesorios para la temporada.", entry.Summary);
     }
 
     [Fact]
@@ -355,6 +402,25 @@ public sealed class DigestIngestTests
             {
                 Content = new StringContent(Envelope(answer), Encoding.UTF8, "application/json")
             };
+        }
+    }
+
+    private sealed class BytesHttpHandler(byte[] body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(body)
+            };
+            response.Content.Headers.ContentType =
+                new MediaTypeHeaderValue("application/rss+xml");
+
+            return Task.FromResult(response);
         }
     }
 
