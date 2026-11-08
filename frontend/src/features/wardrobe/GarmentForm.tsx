@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import type { GarmentCategory, Season } from '../../lib/types'
-import { CATEGORY_OPTIONS, SEASON_OPTIONS } from './garmentLabels'
+import { CATEGORY_OPTIONS, SEASON_OPTIONS, STYLE_TAG_OPTIONS } from './garmentLabels'
 import type { GarmentFormValues } from './garmentUpload'
 
 interface GarmentFormProps {
@@ -50,6 +50,19 @@ export function GarmentForm({
       : [...values.seasons, season]
 
     onChange({ ...values, seasons })
+  }
+
+  function toggleStyleTag(tag: string) {
+    const selected = values.styleTags.includes(tag)
+    if (!selected && values.styleTags.length >= 4) {
+      return
+    }
+
+    const styleTags = selected
+      ? values.styleTags.filter((value) => value !== tag)
+      : [...values.styleTags, tag]
+
+    onChange({ ...values, styleTags })
   }
 
   return (
@@ -209,28 +222,6 @@ export function GarmentForm({
             ))}
           </select>
         </label>
-
-        <label
-          htmlFor="garment-tags"
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
-        >
-          Etiquetas
-          <input
-            id="garment-tags"
-            name="styleTags"
-            type="text"
-            value={values.styleTags}
-            onChange={(event) =>
-              onChange({ ...values, styleTags: event.target.value })
-            }
-            disabled={busy}
-            className={inputClassName}
-            placeholder="minimalista, casual"
-          />
-          <span className="text-[11px] font-normal text-stone-400">
-            Separadas por coma.
-          </span>
-        </label>
       </div>
 
       <fieldset disabled={busy} className="border-0 p-0">
@@ -253,6 +244,42 @@ export function GarmentForm({
               {option.label}
             </label>
           ))}
+        </div>
+      </fieldset>
+
+      <fieldset disabled={busy} className="border-0 p-0">
+        <legend className="mb-1 text-xs font-medium text-stone-500">
+          Etiquetas
+        </legend>
+        <p className="mb-2 text-[11px] font-normal text-stone-400">
+          Elegí hasta 4 del vocabulario controlado.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {STYLE_TAG_OPTIONS.map((option) => {
+            const selected = values.styleTags.includes(option.value)
+            const disabledByLimit = !selected && values.styleTags.length >= 4
+
+            return (
+              <label
+                key={option.value}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                  selected
+                    ? 'border-stone-900 bg-stone-900 text-white'
+                    : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400'
+                } ${disabledByLimit ? 'cursor-not-allowed opacity-40' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  value={option.value}
+                  checked={selected}
+                  onChange={() => toggleStyleTag(option.value)}
+                  disabled={busy || disabledByLimit}
+                  className="sr-only"
+                />
+                {option.label}
+              </label>
+            )
+          })}
         </div>
       </fieldset>
 

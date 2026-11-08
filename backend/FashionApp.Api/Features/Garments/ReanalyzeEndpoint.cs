@@ -28,7 +28,7 @@ public static class ReanalyzeEndpoint
         AppDbContext db,
         IGarmentAnalyzer analyzer,
         IAiQuota quota,
-        IConfiguration configuration,
+        DataPaths paths,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
@@ -44,8 +44,7 @@ public static class ReanalyzeEndpoint
                 detail: "No existe una prenda activa con ese identificador.");
         }
 
-        var root = configuration["Storage:Root"] ?? "data/uploads";
-        var imagePath = Path.Combine(root, Path.GetFileName(garment.ImagePath));
+        var imagePath = Path.Combine(paths.UploadsPath, Path.GetFileName(garment.ImagePath));
 
         if (string.IsNullOrWhiteSpace(garment.ImagePath) || !File.Exists(imagePath))
         {
@@ -64,6 +63,10 @@ public static class ReanalyzeEndpoint
         try
         {
             analysis = await analyzer.AnalyzeAsync(image, "image/webp", cancellationToken);
+        }
+        catch (NoGarmentDetectedException)
+        {
+            return GarmentImageIntake.NoGarmentDetected();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

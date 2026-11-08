@@ -23,6 +23,35 @@ export const SEASON_OPTIONS: ReadonlyArray<{
   { value: 'winter', label: 'Invierno' },
 ]
 
+/** Same closed list used by the analysis prompt and the digest. */
+export const STYLE_TAG_OPTIONS: ReadonlyArray<{
+  value: string
+  label: string
+}> = [
+  { value: 'minimalista', label: 'Minimalista' },
+  { value: 'clasico', label: 'Clásico' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'streetwear', label: 'Streetwear' },
+  { value: 'romantico', label: 'Romántico' },
+  { value: 'bohemio', label: 'Bohemio' },
+  { value: 'deportivo', label: 'Deportivo' },
+  { value: 'formal', label: 'Formal' },
+  { value: 'vintage', label: 'Vintage' },
+  { value: 'noventoso', label: 'Noventoso' },
+  { value: 'y2k', label: 'Y2K' },
+  { value: 'utilitario', label: 'Utilitario' },
+  { value: 'monocromatico', label: 'Monocromático' },
+  { value: 'colorido', label: 'Colorido' },
+  { value: 'oversized', label: 'Oversized' },
+  { value: 'entallado', label: 'Entallado' },
+  { value: 'capas', label: 'Capas' },
+  { value: 'texturado', label: 'Texturado' },
+]
+
+export const STYLE_TAG_VALUES: readonly string[] = STYLE_TAG_OPTIONS.map(
+  (option) => option.value,
+)
+
 const CATEGORY_LABELS = Object.fromEntries(
   CATEGORY_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<GarmentCategory, string>

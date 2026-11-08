@@ -17,4 +17,10 @@ describe('buildGarmentQuery', () => {
       '?color=azul+marino',
     )
   })
+
+  it('includes the pagination cursor without encoding it twice', () => {
+    expect(buildGarmentQuery({ category: 'top', cursor: 'abc_-123' })).toBe(
+      '?category=top&cursor=abc_-123',
+    )
+  })
 })

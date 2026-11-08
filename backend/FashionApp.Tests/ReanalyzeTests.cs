@@ -48,6 +48,21 @@ public sealed class ReanalyzeTests : IDisposable
     }
 
     [Fact]
+    public async Task Reanalyze_returns_422_when_the_model_says_there_is_no_garment()
+    {
+        var id = await SeedGarmentWithImage(factory, "Camisa vieja");
+        using var noGarment = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+                services.AddSingleton<IGarmentAnalyzer, NoGarmentAnalyzer>()));
+
+        var response = await noGarment.CreateClient()
+            .PostAsync($"/api/garments/{id}/reanalyze", null);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task Reanalyze_returns_empty_proposal_when_analyzer_fails()
     {
         var id = await SeedGarmentWithImage(factory, "Camisa vieja");

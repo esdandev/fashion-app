@@ -934,7 +934,7 @@ git commit -m "feat: add responsive wardrobe grid with filters"
 
 Antes de empezar, crear `frontend/playwright.config.ts` con `testDir: './tests'`, `use.baseURL = 'http://localhost:5173'` y `webServer` apuntando a `pnpm dev` (sin backend automático; el backend se levanta en modo fake según el paso 4).
 
-Input `accept="image/jpeg,image/png,image/webp"`, preview local con `URL.createObjectURL`, validación de 10 MB en cliente con mensaje en español, spinner con texto "Analizando prenda…", y formulario de confirmación con los campos del análisis (nombre, categoría, color, temporada, formalidad, etiquetas). El botón "Guardar" hace `POST /api/garments`; el botón "Reintentar" hace `POST /{id}/reanalyze` y vuelve a llenar el formulario sin guardar.
+Input `accept="image/jpeg,image/png,image/webp"`, preview local con `URL.createObjectURL`, validación de 10 MB en cliente con mensaje en español, spinner con texto "Analizando prenda…", y formulario de confirmación con los campos del análisis (nombre, categoría, color, temporada, formalidad, etiquetas del vocabulario controlado). El botón "Guardar" usa `POST /api/garments/confirm` si la foto es nueva o `PATCH /api/garments/{id}` si ya estaba en el guardarropa; el botón "Reintentar" hace `POST /{id}/reanalyze` y vuelve a llenar el formulario sin guardar.
 
 - [ ] **Step 2: Escribir el E2E que falla**
 

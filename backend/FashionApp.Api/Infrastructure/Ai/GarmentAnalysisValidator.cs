@@ -8,31 +8,13 @@ namespace FashionApp.Api.Infrastructure.Ai;
 /// </summary>
 public static class GarmentAnalysisValidator
 {
-    private const int MaxNameLength = 120;
-    private const int MaxSubcategoryLength = 60;
-    private const int MaxColorLength = 40;
-    private const int MaxPatternLength = 40;
-    private const int MaxMaterialLength = 60;
-    private const int MaxColors = 4;
-    private const int MaxStyleTags = 4;
-
-    private static readonly HashSet<string> ValidCategories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "top", "bottom", "dress", "outerwear", "shoes", "bag", "accessory"
-    };
-
-    private static readonly HashSet<string> ValidSeasons = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "spring", "summer", "autumn", "winter"
-    };
-
-    // The same closed list used by the digest, per docs/Fashion App.md.
-    private static readonly HashSet<string> ValidStyleTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "minimalista", "clasico", "casual", "streetwear", "romantico", "bohemio",
-        "deportivo", "formal", "vintage", "noventoso", "y2k", "utilitario",
-        "monocromatico", "colorido", "oversized", "entallado", "capas", "texturado"
-    };
+    private const int MaxNameLength = GarmentVocabulary.MaxNameLength;
+    private const int MaxSubcategoryLength = GarmentVocabulary.MaxSubcategoryLength;
+    private const int MaxColorLength = GarmentVocabulary.MaxColorLength;
+    private const int MaxPatternLength = GarmentVocabulary.MaxPatternLength;
+    private const int MaxMaterialLength = GarmentVocabulary.MaxMaterialLength;
+    private const int MaxColors = GarmentVocabulary.MaxColors;
+    private const int MaxStyleTags = GarmentVocabulary.MaxStyleTags;
 
     /// <summary>
     /// Returns <c>false</c> only when <paramref name="input"/> is null; every
@@ -57,10 +39,10 @@ public static class GarmentAnalysisValidator
             Subcategory: TrimToLengthOrNull(input.Subcategory, MaxSubcategoryLength),
             Colors: NormalizeColors(input.Colors),
             Pattern: TrimToLengthOrNull(input.Pattern, MaxPatternLength),
-            Seasons: NormalizeVocabulary(input.Seasons, ValidSeasons),
+            Seasons: NormalizeVocabulary(input.Seasons, GarmentVocabulary.Seasons),
             Formality: Math.Clamp(input.Formality, 1, 5),
             Material: TrimToLengthOrNull(input.Material, MaxMaterialLength),
-            StyleTags: NormalizeVocabulary(input.StyleTags, ValidStyleTags, MaxStyleTags),
+            StyleTags: NormalizeVocabulary(input.StyleTags, GarmentVocabulary.StyleTags, MaxStyleTags),
             Confidence: double.IsFinite(input.Confidence)
                 ? Math.Clamp(input.Confidence, 0, 1)
                 : 0);
@@ -71,7 +53,7 @@ public static class GarmentAnalysisValidator
     private static string NormalizeCategory(string? category)
     {
         var value = category?.Trim() ?? "";
-        return ValidCategories.Contains(value) ? value.ToLowerInvariant() : "top";
+        return GarmentVocabulary.Categories.Contains(value) ? value.ToLowerInvariant() : "top";
     }
 
     private static string[] NormalizeColors(string[]? colors)
@@ -97,7 +79,7 @@ public static class GarmentAnalysisValidator
 
     private static string[] NormalizeVocabulary(
         string[]? values,
-        HashSet<string> vocabulary,
+        IReadOnlySet<string> vocabulary,
         int maxCount = int.MaxValue)
     {
         if (values is null)

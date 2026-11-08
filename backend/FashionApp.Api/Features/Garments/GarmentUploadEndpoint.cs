@@ -43,11 +43,14 @@ public static class GarmentUploadEndpoint
         if (normalized is null)
             return error ?? GarmentImageIntake.InvalidFile();
 
-        // Check for an existing hash before touching the disk or the analyzer:
-        // re-uploading the same photo must not create a second file or AI call.
+        // Check for an active existing hash before touching the disk or the
+        // analyzer: re-uploading the same photo must not create a second file or
+        // AI call. Archived rows are ignored so the user can restore them.
         var existing = await db.Garments
             .AsNoTracking()
-            .FirstOrDefaultAsync(g => g.ContentHash == normalized.ContentHash, cancellationToken);
+            .FirstOrDefaultAsync(
+                g => g.ContentHash == normalized.ContentHash && !g.IsArchived,
+                cancellationToken);
 
         if (existing is not null)
             return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(existing), true));
@@ -57,14 +60,49 @@ public static class GarmentUploadEndpoint
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
             return QuotaResults.TooManyRequests(httpContext);
 
-        var analysis = await GarmentImageIntake.AnalyzeAsync(
-            analyzer,
-            normalized.Original,
-            cancellationToken);
+        GarmentAnalysis analysis;
+        try
+        {
+            analysis = await GarmentImageIntake.AnalyzeAsync(
+                analyzer,
+                normalized.Original,
+                cancellationToken);
+        }
+        catch (NoGarmentDetectedException)
+        {
+            return GarmentImageIntake.NoGarmentDetected();
+        }
 
         var (imagePath, thumbPath) = await storage.SaveAsync(normalized, cancellationToken);
         var now = DateTimeOffset.UtcNow;
-        var garment = ToGarment(analysis, normalized, imagePath, thumbPath, now);
+
+        // An archived row still owns the unique ContentHash. Restoring it keeps
+        // the original id and avoids a unique-index failure on re-upload.
+        var archived = await db.Garments
+            .FirstOrDefaultAsync(
+                g => g.ContentHash == normalized.ContentHash && g.IsArchived,
+                cancellationToken);
+
+        if (archived is not null)
+        {
+            ApplyValues(archived, analysis, imagePath, thumbPath);
+            archived.IsArchived = false;
+            archived.UpdatedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(archived), true));
+        }
+
+        var garment = new Garment
+        {
+            Id = Guid.NewGuid(),
+            ContentHash = normalized.ContentHash,
+            ImagePath = imagePath,
+            ThumbPath = thumbPath,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        ApplyValues(garment, analysis, imagePath, thumbPath);
 
         db.Garments.Add(garment);
 
@@ -79,7 +117,9 @@ public static class GarmentUploadEndpoint
             db.Entry(garment).State = EntityState.Detached;
             var winner = await db.Garments
                 .AsNoTracking()
-                .FirstOrDefaultAsync(g => g.ContentHash == normalized.ContentHash, cancellationToken);
+                .FirstOrDefaultAsync(
+                    g => g.ContentHash == normalized.ContentHash && !g.IsArchived,
+                    cancellationToken);
 
             if (winner is null)
                 throw;
@@ -92,53 +132,39 @@ public static class GarmentUploadEndpoint
             new CreateGarmentResponse(GarmentQuery.ToDto(garment), false));
     }
 
-    private static Garment ToGarment(
+    private static void ApplyValues(
+        Garment garment,
         GarmentAnalysis analysis,
-        NormalizedImage image,
         string imagePath,
-        string thumbPath,
-        DateTimeOffset now)
+        string thumbPath)
     {
         var colors = (analysis.Colors ?? [])
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Select(c => c.Trim())
             .ToArray();
-        var seasons = (analysis.Seasons ?? [])
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Select(s => s.Trim())
-            .ToArray();
-        var styleTags = (analysis.StyleTags ?? [])
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Select(t => t.Trim())
-            .ToArray();
+        var seasons = GarmentInputRules.NormalizeSeasons(analysis.Seasons);
+        var styleTags = GarmentInputRules.NormalizeStyleTags(analysis.StyleTags);
 
         var name = analysis.Name?.Trim();
         if (string.IsNullOrEmpty(name))
             name = "Prenda";
 
-        return new Garment
-        {
-            Id = Guid.NewGuid(),
-            Name = name,
-            Category = GarmentAnalysisMapping.ParseCategory(analysis.Category),
-            Subcategory = analysis.Subcategory?.Trim(),
-            ColorName = colors.FirstOrDefault() ?? "",
-            ColorHex = "",
-            SecondaryColorsJson = colors.Length > 1
-                ? JsonSerializer.Serialize(colors.Skip(1).ToArray())
-                : null,
-            Pattern = analysis.Pattern?.Trim(),
-            Seasons = string.Join(',', seasons),
-            Formality = Math.Clamp(analysis.Formality, 1, 5),
-            Material = analysis.Material?.Trim(),
-            StyleTagsJson = JsonSerializer.Serialize(styleTags),
-            ContentHash = image.ContentHash,
-            ImagePath = imagePath,
-            ThumbPath = thumbPath,
-            AnalysisJson = JsonSerializer.Serialize(analysis),
-            Confidence = Math.Clamp(analysis.Confidence, 0, 1),
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+        garment.Name = name;
+        garment.Category = GarmentAnalysisMapping.ParseCategory(analysis.Category);
+        garment.Subcategory = analysis.Subcategory?.Trim();
+        garment.ColorName = colors.FirstOrDefault() ?? "";
+        garment.ColorHex = "";
+        garment.SecondaryColorsJson = colors.Length > 1
+            ? JsonSerializer.Serialize(colors.Skip(1).ToArray())
+            : null;
+        garment.Pattern = analysis.Pattern?.Trim();
+        garment.Seasons = string.Join(',', seasons);
+        garment.Formality = Math.Clamp(analysis.Formality, 1, 5);
+        garment.Material = analysis.Material?.Trim();
+        garment.StyleTagsJson = JsonSerializer.Serialize(styleTags);
+        garment.ImagePath = imagePath;
+        garment.ThumbPath = thumbPath;
+        garment.AnalysisJson = JsonSerializer.Serialize(analysis);
+        garment.Confidence = Math.Clamp(analysis.Confidence, 0, 1);
     }
 }

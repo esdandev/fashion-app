@@ -32,6 +32,7 @@ export interface GarmentListResponse {
 
 export interface GarmentFiltersState {
   category: GarmentCategory | ''
+  color: string
   season: Season | ''
 }
 

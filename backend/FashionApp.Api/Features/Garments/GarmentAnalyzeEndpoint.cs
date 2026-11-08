@@ -42,9 +42,13 @@ public static class GarmentAnalyzeEndpoint
         if (normalized is null)
             return error ?? GarmentImageIntake.InvalidFile();
 
+        // Archived rows must not short-circuit the flow: the user is uploading
+        // the photo again to bring the garment back.
         var existing = await db.Garments
             .AsNoTracking()
-            .FirstOrDefaultAsync(g => g.ContentHash == normalized.ContentHash, cancellationToken);
+            .FirstOrDefaultAsync(
+                g => g.ContentHash == normalized.ContentHash && !g.IsArchived,
+                cancellationToken);
 
         if (existing is not null)
         {
@@ -63,10 +67,18 @@ public static class GarmentAnalyzeEndpoint
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
             return QuotaResults.TooManyRequests(httpContext);
 
-        var analysis = await GarmentImageIntake.AnalyzeAsync(
-            analyzer,
-            normalized.Original,
-            cancellationToken);
+        GarmentAnalysis analysis;
+        try
+        {
+            analysis = await GarmentImageIntake.AnalyzeAsync(
+                analyzer,
+                normalized.Original,
+                cancellationToken);
+        }
+        catch (NoGarmentDetectedException)
+        {
+            return GarmentImageIntake.NoGarmentDetected();
+        }
 
         GarmentAnalysisValidator.TryNormalize(analysis, out var proposal);
 

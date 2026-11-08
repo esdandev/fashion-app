@@ -108,3 +108,16 @@ public sealed class ThrowingAnalyzer : IGarmentAnalyzer
         CancellationToken ct) =>
         throw new HttpRequestException("El proveedor de IA no está disponible.");
 }
+
+/// <summary>
+/// Simulates the model answering <c>{"error":"no_garment"}</c>. The endpoints
+/// must surface a 422 instead of storing a zero-confidence "Prenda".
+/// </summary>
+public sealed class NoGarmentAnalyzer : IGarmentAnalyzer
+{
+    public Task<GarmentAnalysis> AnalyzeAsync(
+        byte[] image,
+        string contentType,
+        CancellationToken ct) =>
+        throw new NoGarmentDetectedException();
+}

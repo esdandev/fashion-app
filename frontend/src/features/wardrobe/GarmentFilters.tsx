@@ -4,13 +4,18 @@ import { CATEGORY_OPTIONS, SEASON_OPTIONS } from './garmentLabels'
 interface GarmentFiltersProps {
   filters: GarmentFiltersState
   onChange: (filters: GarmentFiltersState) => void
+  colorOptions?: readonly string[]
 }
 
 const selectClassName =
   'w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none sm:w-auto'
 
-export function GarmentFilters({ filters, onChange }: GarmentFiltersProps) {
-  const hasFilters = Boolean(filters.category || filters.season)
+export function GarmentFilters({
+  filters,
+  onChange,
+  colorOptions = [],
+}: GarmentFiltersProps) {
+  const hasFilters = Boolean(filters.category || filters.color || filters.season)
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -33,6 +38,25 @@ export function GarmentFilters({ filters, onChange }: GarmentFiltersProps) {
             </option>
           ))}
         </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-xs font-medium text-stone-500">
+        Color
+        <input
+          type="text"
+          list="wardrobe-color-options"
+          value={filters.color}
+          onChange={(event) =>
+            onChange({ ...filters, color: event.target.value })
+          }
+          placeholder="Todos"
+          className={selectClassName}
+        />
+        <datalist id="wardrobe-color-options">
+          {colorOptions.map((color) => (
+            <option key={color} value={color} />
+          ))}
+        </datalist>
       </label>
 
       <label className="flex flex-col gap-1 text-xs font-medium text-stone-500">
@@ -59,7 +83,7 @@ export function GarmentFilters({ filters, onChange }: GarmentFiltersProps) {
       {hasFilters && (
         <button
           type="button"
-          onClick={() => onChange({ category: '', season: '' })}
+          onClick={() => onChange({ category: '', color: '', season: '' })}
           className="self-start rounded-xl px-3 py-2 text-sm font-medium text-stone-600 underline-offset-4 transition-colors hover:text-stone-900 hover:underline sm:self-auto"
         >
           Limpiar filtros

@@ -1,12 +1,14 @@
+using FashionApp.Api.Infrastructure;
+
 namespace FashionApp.Api.Infrastructure.Storage;
 
 /// <summary>
-/// Persists normalized images under the configured storage root. Files are
-/// content addressed, so an existing file is always kept as-is.
+/// Persists normalized images under the resolved data root. Files are content
+/// addressed, so an existing file is always kept as-is.
 /// </summary>
-public sealed class FileStorage(IConfiguration configuration)
+public sealed class FileStorage(DataPaths paths)
 {
-    public string Root => configuration["Storage:Root"] ?? "data/uploads";
+    public string Root => paths.UploadsPath;
 
     public async Task<(string ImagePath, string ThumbPath)> SaveAsync(
         NormalizedImage image,

@@ -16,6 +16,10 @@ La app corre en `http://localhost:5173` y consume la API en
 En la instancia personal, guardá el token en `sessionStorage` con la clave
 `app_token`; el cliente lo envía como `X-App-Token`.
 
+El guardarropa pagina de a 24 prendas con un botón "Cargar más", filtra por
+categoría, color (con sugerencias de los colores ya cargados) y temporada, y el
+formulario de confirmación usa un selector acotado de etiquetas (máximo 4).
+
 ## Scripts
 
 - `pnpm dev` — servidor de desarrollo.

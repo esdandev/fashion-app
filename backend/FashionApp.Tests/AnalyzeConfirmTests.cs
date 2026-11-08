@@ -234,6 +234,97 @@ public sealed class AnalyzeConfirmTests : IDisposable
         Assert.Equal(HttpStatusCode.Conflict, missing.StatusCode);
     }
 
+    [Fact]
+    public async Task Confirm_rejects_input_outside_the_closed_vocabulary_and_bounds()
+    {
+        var client = factory.CreateClient();
+        var hash = new string('c', 64);
+
+        ConfirmGarmentRequest[] cases =
+        [
+            ConfirmRequest(hash, "Camisa") with { ColorHex = "azul" },
+            ConfirmRequest(hash, "Camisa") with { Seasons = ["monsoon"] },
+            ConfirmRequest(hash, "Camisa") with { StyleTags = ["inventado"] },
+            ConfirmRequest(hash, "Camisa") with
+            {
+                StyleTags = ["minimalista", "casual", "formal", "vintage", "y2k"]
+            },
+            ConfirmRequest(hash, new string('a', 121)),
+            ConfirmRequest(hash, "Camisa") with { Notes = new string('a', 401) }
+        ];
+
+        foreach (var request in cases)
+        {
+            var response = await client.PostAsJsonAsync("/api/garments/confirm", request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        }
+    }
+
+    [Fact]
+    public async Task Reuploading_an_archived_photo_restores_the_same_garment()
+    {
+        var client = factory.CreateClient();
+        var image = TestImages.CreateJpeg(803, 603);
+
+        var first = await AnalyzeAsync(client, image);
+        var confirm = await client.PostAsJsonAsync(
+            "/api/garments/confirm",
+            ConfirmRequest(first.ContentHash, name: "Prenda archivada"));
+        var created = await confirm.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+
+        var archive = await client.DeleteAsync($"/api/garments/{created!.Garment.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, archive.StatusCode);
+
+        // The archived row is ignored during analyze; the user gets a fresh
+        // proposal instead of a reference to a hidden garment.
+        var again = await AnalyzeAsync(client, TestImages.CreateJpeg(803, 603));
+        Assert.Equal(first.ContentHash, again.ContentHash);
+        Assert.Null(again.ExistingGarmentId);
+
+        var restore = await client.PostAsJsonAsync(
+            "/api/garments/confirm",
+            ConfirmRequest(again.ContentHash, name: "Prenda restaurada"));
+        var restored = await restore.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
+        Assert.Equal(created.Garment.Id, restored!.Garment.Id);
+        Assert.Equal("Prenda restaurada", restored.Garment.Name);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider
+            .GetRequiredService<FashionApp.Api.Infrastructure.AppDbContext>();
+        var saved = await db.Garments.AsNoTracking().SingleAsync();
+        Assert.False(saved.IsArchived);
+        Assert.Equal("Prenda restaurada", saved.Name);
+    }
+
+    [Fact]
+    public async Task Analyze_and_upload_map_no_garment_to_422()
+    {
+        using var noGarment = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+                services.AddSingleton<FashionApp.Api.Infrastructure.Ai.IGarmentAnalyzer, NoGarmentAnalyzer>()));
+        var client = noGarment.CreateClient();
+
+        using var analyzeContent = TestImages.Multipart("a.jpg", TestImages.CreateJpeg(200, 200));
+        var analyze = await client.PostAsync("/api/garments/analyze", analyzeContent);
+
+        using var uploadContent = TestImages.Multipart("b.jpg", TestImages.CreateJpeg(201, 201));
+        var upload = await client.PostAsync("/api/garments", uploadContent);
+
+        foreach (var response in new[] { analyze, upload })
+        {
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Contains(
+                "no parece contener una prenda",
+                body.GetProperty("detail").GetString() ?? "");
+        }
+    }
+
     private static async Task<AnalyzeGarmentResponse> AnalyzeAsync(
         HttpClient client,
         Stream image)

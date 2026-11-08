@@ -41,6 +41,19 @@ public sealed class GarmentAnalysisTests
     }
 
     [Fact]
+    public async Task Gemini_analyzer_signals_no_garment_instead_of_empty_analysis()
+    {
+        var handler = new StubHttpHandler(
+            """{"candidates":[{"content":{"parts":[{"text":"{\"error\":\"no_garment\"}"}]}}]}""");
+        var analyzer = new GeminiGarmentAnalyzer(
+            new HttpClient(handler),
+            Options.Create(new AiOptions { ApiKey = "test" }));
+
+        await Assert.ThrowsAsync<NoGarmentDetectedException>(
+            () => analyzer.AnalyzeAsync([1, 2, 3], "image/jpeg", default));
+    }
+
+    [Fact]
     public async Task Gemini_analyzer_returns_empty_analysis_on_garbage()
     {
         var handler = new StubHttpHandler("""{"candidates":[{"content":{"parts":[{"text":"no soy json"}]}}]}""");

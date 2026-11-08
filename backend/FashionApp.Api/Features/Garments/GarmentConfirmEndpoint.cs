@@ -27,7 +27,7 @@ public static partial class GarmentConfirmEndpoint
     private static async Task<IResult> HandleAsync(
         ConfirmGarmentRequest request,
         AppDbContext db,
-        IConfiguration configuration,
+        DataPaths paths,
         CancellationToken cancellationToken)
     {
         var hash = request.ContentHash?.Trim().ToLowerInvariant() ?? "";
@@ -41,45 +41,41 @@ public static partial class GarmentConfirmEndpoint
 
         var existing = await db.Garments
             .AsNoTracking()
-            .FirstOrDefaultAsync(g => g.ContentHash == hash, cancellationToken);
+            .FirstOrDefaultAsync(
+                g => g.ContentHash == hash && !g.IsArchived,
+                cancellationToken);
 
         if (existing is not null)
             return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(existing), true));
 
-        var name = request.Name?.Trim() ?? "";
-        if (name.Length == 0 || name.Length > 120)
+        var validationError = GarmentInputRules.Validate(
+            request.Name,
+            requireName: true,
+            request.Category,
+            request.Subcategory,
+            request.ColorName,
+            request.ColorHex,
+            request.Pattern,
+            request.Material,
+            request.Notes,
+            request.Formality,
+            request.Seasons,
+            request.StyleTags);
+
+        if (validationError is not null)
         {
             return GarmentImageIntake.Problem(
                 StatusCodes.Status400BadRequest,
                 "Solicitud inválida",
-                "El nombre no puede estar vacío ni superar los 120 caracteres.");
+                validationError);
         }
 
-        var category = GarmentCategory.Top;
-        if (request.Category is not null
-            && (!Enum.TryParse(request.Category, ignoreCase: true, out category)
-                || !Enum.IsDefined(category)))
-        {
-            return GarmentImageIntake.Problem(
-                StatusCodes.Status400BadRequest,
-                "Solicitud inválida",
-                "La categoría no es válida.");
-        }
-
-        if (request.Formality is int formality && (formality < 1 || formality > 5))
-        {
-            return GarmentImageIntake.Problem(
-                StatusCodes.Status400BadRequest,
-                "Solicitud inválida",
-                "La formalidad debe estar entre 1 y 5.");
-        }
-
-        var root = configuration["Storage:Root"] ?? "data/uploads";
+        var category = GarmentAnalysisMapping.ParseCategory(request.Category);
         var imageFile = $"{hash}.webp";
         var thumbFile = $"{hash}-thumb.webp";
 
-        if (!File.Exists(Path.Combine(root, imageFile))
-            || !File.Exists(Path.Combine(root, thumbFile)))
+        if (!File.Exists(Path.Combine(paths.UploadsPath, imageFile))
+            || !File.Exists(Path.Combine(paths.UploadsPath, thumbFile)))
         {
             return GarmentImageIntake.Problem(
                 StatusCodes.Status409Conflict,
@@ -87,50 +83,66 @@ public static partial class GarmentConfirmEndpoint
                 "La imagen analizada ya no está disponible. Volvé a subirla.");
         }
 
-        var seasons = NormalizeList(request.Seasons);
-        var styleTags = NormalizeList(request.StyleTags);
+        var name = request.Name?.Trim() ?? "";
+        var seasons = GarmentInputRules.NormalizeSeasons(request.Seasons);
+        var styleTags = GarmentInputRules.NormalizeStyleTags(request.StyleTags);
         var colorName = request.ColorName?.Trim() ?? "";
-        var colorHex = request.ColorHex?.Trim() ?? "";
+        var colorHex = string.IsNullOrWhiteSpace(request.ColorHex)
+            ? ""
+            : request.ColorHex.Trim();
         var confidence = request.Confidence is double value && double.IsFinite(value)
             ? Math.Clamp(value, 0, 1)
             : 0;
         var finalFormality = request.Formality ?? 3;
-
-        var analysis = new GarmentAnalysis(
-            Name: name,
-            Category: GarmentAnalysisMapping.CategoryToApi(category),
-            Subcategory: request.Subcategory?.Trim(),
-            Colors: colorName.Length == 0 ? [] : [colorName],
-            Pattern: request.Pattern?.Trim(),
-            Seasons: seasons,
-            Formality: finalFormality,
-            Material: request.Material?.Trim(),
-            StyleTags: styleTags,
-            Confidence: confidence);
-
         var now = DateTimeOffset.UtcNow;
+
+        // The same photo may belong to an archived garment. Restoring that row
+        // (instead of inserting a duplicate hash) keeps the wardrobe consistent.
+        var archived = await db.Garments
+            .FirstOrDefaultAsync(
+                g => g.ContentHash == hash && g.IsArchived,
+                cancellationToken);
+
+        if (archived is not null)
+        {
+            ApplyConfirmedValues(
+                archived,
+                name,
+                category,
+                request,
+                colorName,
+                colorHex,
+                seasons,
+                styleTags,
+                finalFormality,
+                confidence);
+            archived.IsArchived = false;
+            archived.UpdatedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(archived), true));
+        }
+
         var garment = new Garment
         {
             Id = Guid.NewGuid(),
-            Name = name,
-            Category = category,
-            Subcategory = request.Subcategory?.Trim(),
-            ColorName = colorName,
-            ColorHex = colorHex,
-            Pattern = request.Pattern?.Trim(),
-            Seasons = string.Join(',', seasons),
-            Formality = finalFormality,
-            Material = request.Material?.Trim(),
-            StyleTagsJson = JsonSerializer.Serialize(styleTags),
-            Notes = request.Notes?.Trim(),
             ContentHash = hash,
             ImagePath = imageFile,
             ThumbPath = thumbFile,
-            AnalysisJson = JsonSerializer.Serialize(analysis),
-            Confidence = confidence,
             CreatedAt = now,
             UpdatedAt = now
         };
+        ApplyConfirmedValues(
+            garment,
+            name,
+            category,
+            request,
+            colorName,
+            colorHex,
+            seasons,
+            styleTags,
+            finalFormality,
+            confidence);
 
         db.Garments.Add(garment);
 
@@ -145,7 +157,9 @@ public static partial class GarmentConfirmEndpoint
             db.Entry(garment).State = EntityState.Detached;
             var winner = await db.Garments
                 .AsNoTracking()
-                .FirstOrDefaultAsync(g => g.ContentHash == hash, cancellationToken);
+                .FirstOrDefaultAsync(
+                    g => g.ContentHash == hash && !g.IsArchived,
+                    cancellationToken);
 
             if (winner is null)
                 throw;
@@ -158,11 +172,44 @@ public static partial class GarmentConfirmEndpoint
             new CreateGarmentResponse(GarmentQuery.ToDto(garment), false));
     }
 
-    private static string[] NormalizeList(IEnumerable<string>? values) =>
-        (values ?? [])
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim())
-            .ToArray();
+    private static void ApplyConfirmedValues(
+        Garment garment,
+        string name,
+        GarmentCategory category,
+        ConfirmGarmentRequest request,
+        string colorName,
+        string colorHex,
+        string[] seasons,
+        string[] styleTags,
+        int formality,
+        double confidence)
+    {
+        var analysis = new GarmentAnalysis(
+            Name: name,
+            Category: GarmentAnalysisMapping.CategoryToApi(category),
+            Subcategory: request.Subcategory?.Trim(),
+            Colors: colorName.Length == 0 ? [] : [colorName],
+            Pattern: request.Pattern?.Trim(),
+            Seasons: seasons,
+            Formality: formality,
+            Material: request.Material?.Trim(),
+            StyleTags: styleTags,
+            Confidence: confidence);
+
+        garment.Name = name;
+        garment.Category = category;
+        garment.Subcategory = request.Subcategory?.Trim();
+        garment.ColorName = colorName;
+        garment.ColorHex = colorHex;
+        garment.Pattern = request.Pattern?.Trim();
+        garment.Seasons = string.Join(',', seasons);
+        garment.Formality = formality;
+        garment.Material = request.Material?.Trim();
+        garment.StyleTagsJson = JsonSerializer.Serialize(styleTags);
+        garment.Notes = request.Notes?.Trim();
+        garment.AnalysisJson = JsonSerializer.Serialize(analysis);
+        garment.Confidence = confidence;
+    }
 
     [GeneratedRegex("^[a-f0-9]{64}$")]
     private static partial Regex ContentHashPattern();

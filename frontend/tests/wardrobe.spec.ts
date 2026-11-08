@@ -53,7 +53,7 @@ test('guarda las correcciones del formulario de confirmación', async ({
   await analyzeFixture(page, 'camisa-azul.jpg')
 
   await page.getByLabel('Nombre').fill('Camisa de lino azul')
-  await page.getByLabel('Color', { exact: true }).fill('celeste')
+  await page.getByRole('dialog').getByLabel('Color', { exact: true }).fill('celeste')
   await page.getByLabel('Color (hex)').fill('#123456')
   await page.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
@@ -81,7 +81,7 @@ test('re-subir una foto confirmada conserva el color y el nombre editado', async
   await analyzeFixture(page, 'camisa-hex.jpg')
 
   await page.getByLabel('Nombre').fill('Camisa con hex')
-  await page.getByLabel('Color', { exact: true }).fill('verde')
+  await page.getByRole('dialog').getByLabel('Color', { exact: true }).fill('verde')
   await page.getByLabel('Color (hex)').fill('#00aa55')
   await page.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByRole('dialog')).toBeHidden()

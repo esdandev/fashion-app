@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FashionApp.Api.Features.Garments;
+using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Storage;
 using ImageMagick;
@@ -113,6 +114,32 @@ public sealed class GarmentUploadTests : IDisposable
         var list = await factory.CreateClient().GetFromJsonAsync<GarmentListResponse>("/api/garments");
         Assert.Empty(list!.Items);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Reuploading_an_archived_photo_restores_the_same_row()
+    {
+        var client = factory.CreateClient();
+        var bytes = TestImages.CreateJpeg(804, 604);
+
+        var first = await client.PostAsync("/api/garments", TestImages.Multipart("a.jpg", bytes));
+        var created = await first.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+
+        Assert.Equal(
+            HttpStatusCode.NoContent,
+            (await client.DeleteAsync($"/api/garments/{created!.Garment.Id}")).StatusCode);
+
+        var second = await client.PostAsync("/api/garments", TestImages.Multipart("b.jpg", bytes));
+        var restored = await second.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.True(restored!.Deduplicated);
+        Assert.Equal(created.Garment.Id, restored.Garment.Id);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider
+            .GetRequiredService<FashionApp.Api.Infrastructure.AppDbContext>();
+        Assert.False((await db.Garments.FindAsync(created.Garment.Id))!.IsArchived);
     }
 
     [Fact]
@@ -243,7 +270,5 @@ public sealed class GarmentUploadTests : IDisposable
     }
 
     private static FileStorage CreateStorage(string root) =>
-        new(new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Root"] = root })
-            .Build());
+        new(new DataPaths(root, Path.Combine(root, "test.db"), root));
 }

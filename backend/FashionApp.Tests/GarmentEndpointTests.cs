@@ -361,6 +361,67 @@ public sealed class GarmentEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task Patch_rejects_input_outside_the_closed_vocabulary_and_bounds()
+    {
+        var id = await SeedOneGarment();
+        var client = factory.CreateClient();
+
+        PatchGarmentRequest[] cases =
+        [
+            new(null, null, null, "rojo", null, null, null, null),
+            new(null, null, null, "#12345", null, null, null, null),
+            new(null, null, null, null, null, ["monsoon"], null, null),
+            new(null, null, null, null, null, null, ["inventado"], null),
+            new(null, null, null, null, null, null,
+                ["minimalista", "casual", "formal", "vintage", "y2k"], null),
+            new(new string('a', 121), null, null, null, null, null, null, null),
+            new(null, null, new string('a', 41), null, null, null, null, null),
+            new(null, null, null, null, null, null, null, new string('a', 401))
+        ];
+
+        foreach (var request in cases)
+        {
+            var response = await client.PatchAsJsonAsync($"/api/garments/{id}", request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        }
+
+        var saved = await GetGarment(id);
+        Assert.NotNull(saved);
+        Assert.Equal("Camisa de lino", saved!.Name);
+        Assert.Equal("beige", saved.ColorName);
+        Assert.Equal("spring,summer", saved.Seasons);
+        Assert.Equal("", saved.StyleTagsJson);
+    }
+
+    [Fact]
+    public async Task Patch_normalizes_seasons_tags_and_text()
+    {
+        var id = await SeedOneGarment();
+        var request = new PatchGarmentRequest(
+            null, null, " Blanco ", "#ABCDEF", null,
+            ["Summer", "summer", "Winter"],
+            [" Minimalista ", "minimalista", "Casual"],
+            "  nota  ");
+
+        var response = await factory.CreateClient()
+            .PatchAsJsonAsync($"/api/garments/{id}", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await response.Content.ReadFromJsonAsync<GarmentDto>();
+        Assert.Equal("Blanco", dto!.ColorName);
+        Assert.Equal("#ABCDEF", dto.ColorHex);
+        Assert.Equal(new[] { "summer", "winter" }, dto.Seasons);
+        Assert.Equal(new[] { "minimalista", "casual" }, dto.StyleTags);
+
+        var saved = await GetGarment(id);
+        Assert.Equal("summer,winter", saved!.Seasons);
+        Assert.Equal("""["minimalista","casual"]""", saved.StyleTagsJson);
+        Assert.Equal("nota", saved.Notes);
+    }
+
+    [Fact]
     public async Task Patch_returns_400_for_unknown_garment()
     {
         var request = new PatchGarmentRequest("Fantasma", null, null, null, null, null, null, null);

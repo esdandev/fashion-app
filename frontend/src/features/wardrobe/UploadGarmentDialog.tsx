@@ -342,6 +342,10 @@ export function UploadGarmentDialog({
             <p className="mt-1.5 text-[11px] text-stone-400">
               JPEG, PNG o WebP · máximo 10 MB.
             </p>
+            <p className="mt-1.5 rounded-lg bg-stone-50 px-2 py-1.5 text-[11px] text-stone-500">
+              La foto se envía al proveedor de IA configurado (por ejemplo,
+              Gemini) para analizarla y proponer los atributos de la prenda.
+            </p>
           </div>
         )}
 

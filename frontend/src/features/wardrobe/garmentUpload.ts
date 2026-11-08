@@ -7,6 +7,7 @@ import type {
   PatchGarmentRequest,
   Season,
 } from '../../lib/types'
+import { STYLE_TAG_VALUES } from './garmentLabels'
 
 /** Same limit enforced by `POST /api/garments`. */
 export const MAX_GARMENT_FILE_BYTES = 10 * 1024 * 1024
@@ -32,8 +33,8 @@ const CATEGORIES: readonly GarmentCategory[] = [
 const SEASONS: readonly Season[] = ['spring', 'summer', 'autumn', 'winter']
 
 /**
- * Editable shape shown in the confirmation form. Tags stay as a comma
- * separated string while editing so a trailing comma does not jump the caret.
+ * Editable shape shown in the confirmation form. Tags are a bounded
+ * multi-select over the closed style vocabulary, never free text.
  */
 export interface GarmentFormValues {
   name: string
@@ -42,7 +43,7 @@ export interface GarmentFormValues {
   colorHex: string
   seasons: Season[]
   formality: number
-  styleTags: string
+  styleTags: string[]
 }
 
 export const EMPTY_GARMENT_FORM_VALUES: GarmentFormValues = {
@@ -52,7 +53,7 @@ export const EMPTY_GARMENT_FORM_VALUES: GarmentFormValues = {
   colorHex: '',
   seasons: [],
   formality: 3,
-  styleTags: '',
+  styleTags: [],
 }
 
 /**
@@ -91,7 +92,7 @@ export function garmentFormValuesFromGarment(
       .map(parseSeason)
       .filter((season): season is Season => season !== null),
     formality: clampFormality(garment.formality),
-    styleTags: garment.styleTags.join(', '),
+    styleTags: normalizeStyleTags(garment.styleTags),
   }
 }
 
@@ -111,7 +112,7 @@ export function garmentFormValuesFromCurrentGarment(
       .map(parseSeason)
       .filter((season): season is Season => season !== null),
     formality: clampFormality(current.formality),
-    styleTags: current.styleTags.join(', '),
+    styleTags: normalizeStyleTags(current.styleTags),
   }
 }
 
@@ -137,7 +138,7 @@ export function garmentFormValuesFromProposal(
     colorHex: current.colorHex,
     seasons: seasons.length > 0 ? seasons : current.seasons,
     formality: clampFormality(proposal.formality),
-    styleTags: proposal.styleTags.join(', '),
+    styleTags: normalizeStyleTags(proposal.styleTags),
   }
 }
 
@@ -151,7 +152,7 @@ export function toPatchRequest(values: GarmentFormValues): PatchGarmentRequest {
     ...(colorHex ? { colorHex } : {}),
     seasons: values.seasons,
     formality: clampFormality(values.formality),
-    styleTags: splitTags(values.styleTags),
+    styleTags: normalizeStyleTags(values.styleTags),
   }
 }
 
@@ -184,17 +185,35 @@ export function toConfirmRequest(
     seasons: values.seasons,
     formality: clampFormality(values.formality),
     material: options.material ?? null,
-    styleTags: splitTags(values.styleTags),
+    styleTags: normalizeStyleTags(values.styleTags),
     notes: options.notes ?? null,
     confidence: options.confidence,
   }
 }
 
-export function splitTags(tags: string): string[] {
-  return tags
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0)
+/** Keeps only the closed vocabulary, deduplicated and capped at four tags. */
+export function normalizeStyleTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const tag of tags) {
+    const normalized = tag.trim().toLowerCase()
+    if (
+      normalized.length === 0 ||
+      !STYLE_TAG_VALUES.includes(normalized) ||
+      seen.has(normalized)
+    ) {
+      continue
+    }
+
+    seen.add(normalized)
+    result.push(normalized)
+    if (result.length === 4) {
+      break
+    }
+  }
+
+  return result
 }
 
 function parseCategory(value: string): GarmentCategory | null {

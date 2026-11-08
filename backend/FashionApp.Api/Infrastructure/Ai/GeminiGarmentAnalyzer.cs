@@ -102,6 +102,12 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
 
             return normalized;
         }
+        catch (NoGarmentDetectedException)
+        {
+            // An explicit "no garment" answer is a product signal, not a provider
+            // failure: the endpoints map it to a 422 instead of saving "Prenda".
+            throw;
+        }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // A cancelled request must not be turned into a saved garment.
@@ -145,8 +151,22 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
             using var document = JsonDocument.Parse(text);
             var root = document.RootElement;
 
-            if (root.ValueKind != JsonValueKind.Object || FindProperty(root, "error") is not null)
+            if (root.ValueKind != JsonValueKind.Object)
                 return null;
+
+            if (FindProperty(root, "error") is { } error)
+            {
+                if (error.ValueKind == JsonValueKind.String
+                    && string.Equals(
+                        error.GetString(),
+                        "no_garment",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new NoGarmentDetectedException();
+                }
+
+                return null;
+            }
 
             return new GarmentAnalysis(
                 Name: GetString(root, "name") ?? "",

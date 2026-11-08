@@ -4,7 +4,7 @@ App web personal de moda: guardarropa, outfits y resumen diario.
 
 La **Fase 0–1** quedó cerrada: se sube una foto, se normaliza y analiza con IA,
 se confirman o corrigen los atributos y la prenda aparece en la grilla del
-guardarropa con filtros por categoría y temporada.
+guardarropa con filtros por categoría, color y temporada.
 
 - Diseño: `docs/Fashion App.md`
 - Plan de la Fase 0–1: `docs/plan-fase-0-1.md`
@@ -48,13 +48,17 @@ dotnet run --project backend/FashionApp.Api
 - API: `http://localhost:5210` (definido en
   `backend/FashionApp.Api/appsettings.Development.json`).
 - Health check: `GET http://localhost:5210/api/health`.
-- Base SQLite: `data/fashion.db` (se crea sola y las migraciones corren al
-  arrancar).
-- Imágenes: `data/uploads`. Ambas rutas están fuera de git.
+- Raíz de datos: `data/` (se crea sola), resuelta una única vez al arrancar.
+  La base vive en `data/fashion.db` y las imágenes en `data/uploads`.
+  Ambas rutas están fuera de git. Configurá otra raíz con `DATA__ROOT`.
+- La demo usa su propia raíz (`data/demo` por defecto) para no leer ni borrar
+  nunca la base personal.
 
 `Ai:Provider=fake` devuelve siempre una camisa de lino determinística, sin
 llamadas de red ni costo. Para usar Gemini, definí `AI__PROVIDER=gemini` y
-`AI__APIKEY` (el arranque falla si falta la clave).
+`AI__APIKEY` (el arranque falla si falta la clave). En `Production`, arrancar la
+instancia personal con `Ai:Provider=fake` deja un warning en el log: usaría
+datos de ejemplo para fotos reales.
 
 ### 2. Frontend
 
@@ -75,6 +79,10 @@ VITE_API_URL=http://localhost:5210 pnpm dev
 
 En la instancia personal, guardá el token una vez en `sessionStorage` con la
 clave `app_token`; el cliente lo envía como `X-App-Token`.
+
+En `Production`, la instancia personal **no arranca** sin `App:Token` (salvo
+`App:AllowAnonymous=true`, pensado solo para entornos descartables). En
+`Development` y `Testing` el token puede quedar vacío para trabajar localmente.
 
 ## Tests y verificación
 
@@ -117,14 +125,17 @@ empezar con `VITE_`.
 
 | Variable | Default | Descripción |
 |---|---|---|
-| `APP__TOKEN` | vacío | Token estático de la instancia personal. Vacío = sin token (desarrollo). |
-| `DEMO__ENABLED` | `false` | Modo demo: siembra datos y rechaza todas las escrituras con `403`. |
+| `DATA__ROOT` | `../../data` | Raíz única de datos, relativa al proyecto de la API. De ella se derivan SQLite y uploads. |
+| `APP__TOKEN` | vacío | Token estático de la instancia personal. Obligatorio en `Production` (salvo `APP__ALLOWANONYMOUS=true`). |
+| `APP__ALLOWANONYMOUS` | `false` | Escape hatch explícito para una instancia personal sin token en `Production`. |
+| `DEMO__ENABLED` | `false` | Modo demo: siembra datos, usa su propia raíz y rechaza todas las escrituras con `403`. |
+| `DEMO__DATAROOT` | `<DATA__ROOT>/demo` | Raíz de datos de la demo. No puede apuntar a la base ni a los uploads personales. |
 | `AI__PROVIDER` | `fake` | `fake` o `gemini`. |
 | `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER=gemini`. |
 | `AI__MODEL` | `gemini-2.0-flash` | Modelo usado por el analizador real. |
 | `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA permitidos por día (calendario UTC). |
-| `CONNECTIONSTRINGS__DEFAULT` | `Data Source=../../data/fashion.db` | Ruta de SQLite, relativa al proyecto de la API. |
-| `STORAGE__ROOT` | `data/uploads` | Originales y miniaturas normalizadas. |
+| `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. Si se define, se usa tal cual. |
+| `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes para CI/tests. |
 | `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS. |
 | `VITE_API_URL` | `http://localhost:5210` | URL de la API que usa el front (solo build/dev del front). |
 
@@ -146,11 +157,17 @@ dotnet run --project backend/FashionApp.Api
 
 - Siembra 14 prendas de ejemplo desde
   `backend/FashionApp.Api/Infrastructure/Demo/SeedAssets/manifest.json`.
+- Usa una raíz propia: `data/demo` por defecto (base `data/demo/fashion.db` y
+  uploads `data/demo/uploads`). Nunca comparte `data/fashion.db` ni
+  `data/uploads` con la instancia personal.
+- Al arrancar verifica que todas las prendas de la base pertenezcan al manifiesto
+  de demo; si encuentra una prenda personal, se niega a arrancar con un error en
+  español.
 - Solo siembra si la tabla de prendas está vacía: reiniciar no duplica nada.
 - En demo, la UI y el backend son de solo lectura (las escrituras devuelven
   `403`) y no se llama a la IA.
-- Para volver al estado inicial: detené el backend, borrá `data/fashion.db` y
-  `data/uploads`, y arrancá de nuevo.
+- Para volver al estado inicial: detené el backend y borrá **solo**
+  `data/demo/`. No borres `data/` completo: ahí vive tu base personal.
 
 ## Endpoints implementados
 
@@ -168,8 +185,10 @@ dotnet run --project backend/FashionApp.Api
 | GET | `/media/{hash}.webp` | Imagen normalizada, con caché inmutable. |
 | GET | `/media/{hash}-thumb.webp` | Miniatura de 400 px. |
 
-Los errores usan `ProblemDetails` (RFC 7807) con mensajes en español. Los
-endpoints de digest y outfits todavía no están implementados (Fases 2–3).
+Los errores usan `ProblemDetails` (RFC 7807) con mensajes en español. Cuando la
+IA responde `{"error":"no_garment"}`, los endpoints de análisis devuelven `422`
+("No se detectó una prenda") en vez de guardar una prenda vacía. Los endpoints
+de digest y outfits todavía no están implementados (Fases 2–3).
 
 ## Decisiones de la Fase 0–1
 
@@ -188,6 +207,20 @@ endpoints de digest y outfits todavía no están implementados (Fases 2–3).
   `POST /api/garments/confirm`.
 - **Imágenes content-addressed.** El nombre sale del hash del contenido:
   re-subir la misma foto no crea otra prenda ni gasta otra llamada de IA.
+  Si la prenda estaba archivada, volver a subir/confirmar la foto restaura la
+  misma fila con los valores confirmados en lugar de crear un duplicado.
+- **Filtros completos.** La UI expone categoría, color (texto libre con
+  sugerencias de los colores cargados) y temporada. El color se debouncea 300 ms
+  para no disparar un request por tecla.
+- **Paginación acumulativa.** El guardarropa usa `useInfiniteQuery` y el botón
+  "Cargar más": nunca se pierden las páginas ya cargadas al cambiar de filtro.
+- **Vocabulario cerrado también en la UI.** Las etiquetas son chips de una lista
+  de 18 valores (máximo 4); confirm y PATCH validan longitudes, temporadas,
+  etiquetas y `colorHex` (`#RRGGBB`) y responden `400` en español si algo no
+  cumple. La IA sigue reparando respuestas parciales en vez de fallar.
+- **Privacidad de la foto.** El diálogo avisa en español que la imagen se envía
+  al proveedor de IA configurado para analizarla. Los tests usan `fake` y nunca
+  llaman a un proveedor real.
 - **Color con muestra.** El formulario acepta `colorName` y `colorHex`; el hex se
   guarda en confirm/PATCH y la tarjeta lo usa para el círculo de color.
 - **Demo de solo lectura.** `GET /api/config` expone `{ demo }`; la UI oculta las

@@ -2,9 +2,10 @@ export interface GarmentQueryFilters {
   category?: string
   color?: string
   season?: string
+  cursor?: string | null
 }
 
-const FILTER_KEYS = ['category', 'color', 'season'] as const
+const FILTER_KEYS = ['category', 'color', 'season', 'cursor'] as const
 
 /**
  * Builds the `/api/garments` query string. Empty or whitespace-only filters are

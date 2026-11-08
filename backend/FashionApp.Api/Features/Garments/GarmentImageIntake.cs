@@ -67,6 +67,10 @@ internal static class GarmentImageIntake
         {
             return await analyzer.AnalyzeAsync(image, "image/webp", cancellationToken);
         }
+        catch (NoGarmentDetectedException)
+        {
+            throw;
+        }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
@@ -91,6 +95,11 @@ internal static class GarmentImageIntake
         StatusCodes.Status415UnsupportedMediaType,
         "Formato no soportado",
         "Solo se aceptan imágenes JPEG, PNG o WebP.");
+
+    public static IResult NoGarmentDetected() => Problem(
+        StatusCodes.Status422UnprocessableEntity,
+        "No se detectó una prenda",
+        "La foto no parece contener una prenda. Probá con otra imagen donde se vea la prenda completa.");
 
     public static IResult Problem(int statusCode, string title, string detail) =>
         Results.Problem(statusCode: statusCode, title: title, detail: detail);

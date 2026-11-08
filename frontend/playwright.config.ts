@@ -5,7 +5,7 @@ const apiURL = 'http://localhost:5210'
 
 /**
  * Both servers are started by Playwright with an isolated test database and
- * uploads root (`frontend/.test-data`, wiped on every run). Stop any local dev
+ * uploads root (`<repo>/.test-data`, wiped on every run). Stop any local dev
  * server on ports 5210/5173 before running the E2E, otherwise the isolated
  * processes cannot bind.
  */

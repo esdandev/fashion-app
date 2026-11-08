@@ -5,7 +5,7 @@ import {
   garmentFormValuesFromCurrentGarment,
   garmentFormValuesFromGarment,
   garmentFormValuesFromProposal,
-  splitTags,
+  normalizeStyleTags,
   toConfirmRequest,
   toPatchRequest,
   validateGarmentFile,
@@ -64,7 +64,7 @@ describe('garment form mapping', () => {
       colorHex: '',
       seasons: ['spring', 'summer'],
       formality: 3,
-      styleTags: 'minimalista, casual',
+      styleTags: ['minimalista', 'casual'],
     })
   })
 
@@ -91,7 +91,7 @@ describe('garment form mapping', () => {
       colorHex: '',
       seasons: ['winter'],
       formality: 5,
-      styleTags: 'formal',
+      styleTags: ['formal'],
     })
   })
 
@@ -127,7 +127,7 @@ describe('garment form mapping', () => {
         colorHex: ' #ffffff ',
         seasons: ['spring'],
         formality: 0,
-        styleTags: ' casual, , minimalista ',
+        styleTags: [' casual ', '', 'minimalista'],
       }),
     ).toEqual({
       name: 'Camisa vieja',
@@ -138,8 +138,20 @@ describe('garment form mapping', () => {
       formality: 1,
       styleTags: ['casual', 'minimalista'],
     })
+  })
 
-    expect(splitTags('')).toEqual([])
+  it('keeps only the closed vocabulary, deduplicates and caps at four tags', () => {
+    expect(
+      normalizeStyleTags([
+        ' Minimalista ',
+        'inventado',
+        'casual',
+        'MINIMALISTA',
+        'formal',
+        'vintage',
+        'y2k',
+      ]),
+    ).toEqual(['minimalista', 'casual', 'formal', 'vintage'])
   })
 
   it('omits an empty colorHex so it cannot erase a saved swatch', () => {
@@ -150,7 +162,7 @@ describe('garment form mapping', () => {
       colorHex: '   ',
       seasons: [],
       formality: 3,
-      styleTags: '',
+      styleTags: [],
     })
     expect(patch).not.toHaveProperty('colorHex')
 
@@ -162,7 +174,7 @@ describe('garment form mapping', () => {
         colorHex: '',
         seasons: [],
         formality: 3,
-        styleTags: '',
+        styleTags: [],
       },
       'a'.repeat(64),
     )
@@ -192,7 +204,7 @@ describe('garment form mapping', () => {
       colorHex: '#00aa55',
       seasons: ['winter'],
       formality: 4,
-      styleTags: 'formal',
+      styleTags: ['formal'],
     })
   })
 
@@ -206,7 +218,7 @@ describe('garment form mapping', () => {
           colorHex: ' #abcdef ',
           seasons: ['spring'],
           formality: 7,
-          styleTags: ' casual, minimalista ',
+          styleTags: [' casual', 'minimalista'],
         },
         'a'.repeat(64),
         {

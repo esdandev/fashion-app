@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
+using FashionApp.Api.Domain;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Demo;
 using FashionApp.Api.Infrastructure.Quotas;
@@ -11,6 +12,55 @@ using Microsoft.Extensions.DependencyInjection;
 
 public sealed class SecurityTests
 {
+    [Theory]
+    [InlineData("Production", "", false, false, true)]
+    [InlineData("Production", "   ", false, false, true)]
+    [InlineData("Production", "secreto", false, false, false)]
+    [InlineData("Production", "", false, true, false)]
+    [InlineData("Production", "", true, false, false)]
+    [InlineData("Development", "", false, false, false)]
+    [InlineData("Testing", "", false, false, false)]
+    public void Production_personal_instance_requires_a_token(
+        string environment,
+        string token,
+        bool demo,
+        bool allowAnonymous,
+        bool shouldThrow)
+    {
+        void Validate() => StartupChecks.ValidateSecurity(
+            environment, token, demo, allowAnonymous);
+
+        if (shouldThrow)
+        {
+            var error = Assert.Throws<InvalidOperationException>(Validate);
+            Assert.Contains("App:Token", error.Message);
+        }
+        else
+        {
+            Validate();
+        }
+    }
+
+    [Fact]
+    public async Task Demo_refuses_to_start_with_garments_outside_the_manifest()
+    {
+        using var factory = new TestAppFactory { Demo = true };
+        Directory.CreateDirectory(factory.UploadsPath);
+
+        // A personal garment in the demo database is exactly the data-leak the
+        // startup guard must stop before the app serves a single request.
+        await using (var db = TestDb.Create(factory.DbPath))
+        {
+            db.Garments.Add(TestData.NewGarment("Prenda personal", GarmentCategory.Top));
+            await db.SaveChangesAsync();
+        }
+
+        var error = Record.Exception(() => factory.CreateClient());
+
+        Assert.NotNull(error);
+        Assert.Contains("no puede usar esta base de datos", error.ToString());
+    }
+
     [Fact]
     public async Task Personal_instance_requires_token()
     {
@@ -73,7 +123,7 @@ public sealed class SecurityTests
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var first = await db.Garments.CountAsync();
-        await DemoSeeder.SeedAsync(db);
+        await DemoSeeder.SeedAsync(db, factory.UploadsPath);
         Assert.Equal(first, await db.Garments.CountAsync());
         Assert.InRange(first, 12, 15);
 
