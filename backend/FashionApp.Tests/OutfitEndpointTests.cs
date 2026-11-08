@@ -113,6 +113,86 @@ public sealed class OutfitEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_rejects_dress_combined_with_a_top_or_bottom()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var dress = TestData.NewGarment("Vestido", GarmentCategory.Dress);
+        var outerwear = TestData.NewGarment("Campera", GarmentCategory.Outerwear);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, dress, outerwear, shoes);
+        var client = factory.CreateClient();
+
+        Guid[][] invalidCombinations =
+        [
+            [dress.Id, top.Id, shoes.Id],
+            [dress.Id, bottom.Id, shoes.Id]
+        ];
+
+        foreach (var garmentIds in invalidCombinations)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/api/outfits", new CreateOutfitRequest("Look superpuesto", null, garmentIds));
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            Assert.Equal(
+                "El outfit necesita una parte superior y una inferior, o un vestido.",
+                await GetProblemDetailAsync(response));
+        }
+
+        Assert.Equal(0, await CountAsync(db => db.Outfits.CountAsync()));
+
+        // A dress with outerwear (and shoes) still follows the valid alternative.
+        var valid = await client.PostAsJsonAsync(
+            "/api/outfits",
+            new CreateOutfitRequest("Vestido con campera", null, [dress.Id, outerwear.Id, shoes.Id]));
+
+        Assert.Equal(HttpStatusCode.Created, valid.StatusCode);
+        var dto = await valid.Content.ReadFromJsonAsync<OutfitDto>();
+        Assert.Equal([dress.Id, outerwear.Id, shoes.Id], dto!.Items.Select(i => i.Garment.Id));
+    }
+
+    [Fact]
+    public async Task Create_rejects_occasion_over_sixty_characters()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/outfits",
+            new CreateOutfitRequest(
+                "Look válido", new string('a', 61), [top.Id, bottom.Id, shoes.Id]));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(
+            "La ocasión no puede superar los 60 caracteres.",
+            await GetProblemDetailAsync(response));
+        Assert.Equal(0, await CountAsync(db => db.Outfits.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Create_accepts_a_sixty_character_occasion()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+        var occasion = new string('o', 60);
+
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/outfits",
+            new CreateOutfitRequest("Look válido", occasion, [top.Id, bottom.Id, shoes.Id]));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var dto = await response.Content.ReadFromJsonAsync<OutfitDto>();
+        Assert.Equal(occasion, dto!.Occasion);
+    }
+
+    [Fact]
     public async Task Create_rejects_formality_spread_greater_than_two()
     {
         var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
@@ -235,6 +315,87 @@ public sealed class OutfitEndpointTests : IDisposable
         Assert.Null(clearedDto!.Occasion);
         Assert.Equal("Look nuevo", clearedDto.Name);
         Assert.True(clearedDto.IsFavorite);
+    }
+
+    [Fact]
+    public async Task Patch_metadata_only_keeps_an_archived_item()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+        var client = factory.CreateClient();
+        var created = await CreateOutfitAsync(client, "Look de día", [top.Id, bottom.Id, shoes.Id]);
+
+        // Archive a garment after the outfit was saved: the outfit must keep it.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var archived = await db.Garments.SingleAsync(g => g.Id == top.Id);
+            archived.IsArchived = true;
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/outfits/{created.Id}",
+            new PatchOutfitRequest("  Look archivado  ", null, true, null));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await response.Content.ReadFromJsonAsync<OutfitDto>();
+        Assert.NotNull(dto);
+        Assert.Equal("Look archivado", dto!.Name);
+        Assert.True(dto.IsFavorite);
+        Assert.Equal([top.Id, bottom.Id, shoes.Id], dto.Items.Select(i => i.Garment.Id));
+
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(3, await verifyDb.OutfitItems.CountAsync(i => i.OutfitId == created.Id));
+        Assert.True((await verifyDb.Garments.SingleAsync(g => g.Id == top.Id)).IsArchived);
+    }
+
+    [Fact]
+    public async Task Patch_rejects_occasion_over_sixty_characters()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+        var client = factory.CreateClient();
+        var created = await CreateOutfitAsync(client, "Look de día", [top.Id, bottom.Id, shoes.Id]);
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/outfits/{created.Id}",
+            new PatchOutfitRequest(null, new string('a', 61), null, null));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(
+            "La ocasión no puede superar los 60 caracteres.",
+            await GetProblemDetailAsync(response));
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Null((await db.Outfits.AsNoTracking().SingleAsync(o => o.Id == created.Id)).Occasion);
+    }
+
+    [Fact]
+    public async Task Patch_accepts_a_sixty_character_occasion()
+    {
+        var top = TestData.NewGarment("Camisa", GarmentCategory.Top);
+        var bottom = TestData.NewGarment("Jean", GarmentCategory.Bottom);
+        var shoes = TestData.NewGarment("Zapatillas", GarmentCategory.Shoes);
+        await TestData.SeedGarments(factory, top, bottom, shoes);
+        var client = factory.CreateClient();
+        var created = await CreateOutfitAsync(client, "Look de día", [top.Id, bottom.Id, shoes.Id]);
+        var occasion = new string('o', 60);
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/outfits/{created.Id}",
+            new PatchOutfitRequest(null, occasion, null, null));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await response.Content.ReadFromJsonAsync<OutfitDto>();
+        Assert.Equal(occasion, dto!.Occasion);
     }
 
     [Fact]

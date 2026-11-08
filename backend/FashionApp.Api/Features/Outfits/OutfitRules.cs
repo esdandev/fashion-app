@@ -53,8 +53,12 @@ public static class OutfitRules
         if (topCount > 1 || bottomCount > 1 || dressCount > 1)
             return OutfitValidation.Invalid(DuplicateGarment);
 
+        // A dress is an alternative to separates, never an addition: combining it
+        // with a top or a bottom produces an over-layered, invalid outfit.
         var hasDress = dressCount == 1;
         var hasTopAndBottom = topCount == 1 && bottomCount == 1;
+        if (hasDress && (topCount > 0 || bottomCount > 0))
+            return OutfitValidation.Invalid(InvalidComposition);
         if (!hasDress && !hasTopAndBottom)
             return OutfitValidation.Invalid(InvalidComposition);
 

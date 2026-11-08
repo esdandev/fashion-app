@@ -10,6 +10,9 @@ public sealed class OutfitRulesTests
     [InlineData("top,bottom", false)]                // falta shoes
     [InlineData("top,top,bottom,shoes", false)]      // dos tops
     [InlineData("top,bottom,shoes,outerwear,outerwear", false)]
+    [InlineData("dress,top,shoes", false)]           // vestido + parte superior
+    [InlineData("dress,bottom,shoes", false)]        // vestido + parte inferior
+    [InlineData("dress,outerwear,shoes", true)]      // abrigo permitido con vestido
     public void Validates_category_composition(string csv, bool expected)
     {
         var garments = csv.Split(',').Select(ToGarment).ToList();
@@ -28,6 +31,8 @@ public sealed class OutfitRulesTests
     [InlineData("top,bottom", "El outfit necesita calzado.")]
     [InlineData("dress", "El outfit necesita calzado.")]
     [InlineData("bottom,shoes", "El outfit necesita una parte superior y una inferior, o un vestido.")]
+    [InlineData("dress,top,shoes", "El outfit necesita una parte superior y una inferior, o un vestido.")]
+    [InlineData("dress,bottom,shoes", "El outfit necesita una parte superior y una inferior, o un vestido.")]
     [InlineData("top,top,bottom,shoes", "No se puede repetir la misma prenda.")]
     [InlineData("top,bottom,bottom,shoes", "No se puede repetir la misma prenda.")]
     [InlineData("dress,dress,shoes", "No se puede repetir la misma prenda.")]
