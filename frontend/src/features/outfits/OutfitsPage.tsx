@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, api } from '../../lib/api'
+import type { Outfit } from '../../lib/types'
 import { OutfitCard, OutfitCardSkeleton } from './OutfitCard'
+import { OutfitEditor } from './OutfitEditor'
 
 function CollageIcon({ className }: { className?: string }) {
   return (
@@ -24,6 +27,8 @@ function CollageIcon({ className }: { className?: string }) {
 }
 
 export default function OutfitsPage() {
+  const [editor, setEditor] = useState<{ outfit?: Outfit } | null>(null)
+
   const outfitsQuery = useQuery({
     queryKey: ['outfits'],
     queryFn: ({ signal }) => api.getOutfits(signal),
@@ -41,26 +46,45 @@ export default function OutfitsPage() {
 
   return (
     <section aria-labelledby="outfits-title" className="space-y-6">
-      <div>
-        <h1
-          id="outfits-title"
-          className="font-display text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl"
-        >
-          Outfits
-        </h1>
-        <p className="mt-1 text-sm text-stone-500">
-          Combinaciones armadas con tus prendas reales.
-        </p>
-        {isDemo && (
-          <p
-            role="note"
-            className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1
+            id="outfits-title"
+            className="font-display text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl"
           >
-            La demo pública es de solo lectura: podés explorar los outfits de
-            ejemplo, pero no modificarlos.
+            Outfits
+          </h1>
+          <p className="mt-1 text-sm text-stone-500">
+            Combinaciones armadas con tus prendas reales.
           </p>
+          {isDemo && (
+            <p
+              role="note"
+              className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"
+            >
+              La demo pública es de solo lectura: podés explorar los outfits de
+              ejemplo, pero no modificarlos.
+            </p>
+          )}
+        </div>
+        {!isDemo && (
+          <button
+            type="button"
+            onClick={() => setEditor({})}
+            className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+          >
+            Crear outfit
+          </button>
         )}
       </div>
+
+      {editor && (
+        <OutfitEditor
+          key={editor.outfit?.id ?? 'nuevo'}
+          outfit={editor.outfit}
+          onClose={() => setEditor(null)}
+        />
+      )}
 
       {outfitsQuery.isError && (
         <div
@@ -105,7 +129,11 @@ export default function OutfitsPage() {
                 ))
               : outfits.map((outfit) => (
                   <li key={outfit.id}>
-                    <OutfitCard outfit={outfit} readOnly={isDemo} />
+                    <OutfitCard
+                      outfit={outfit}
+                      readOnly={isDemo}
+                      onEdit={(selected) => setEditor({ outfit: selected })}
+                    />
                   </li>
                 ))}
           </ul>

@@ -105,6 +105,30 @@ export const api = {
     return parseResponse<GarmentListResponse>(response)
   },
 
+  /**
+   * The active wardrobe needed by the outfit builder. It walks the cursor
+   * pages but stops at `maxPages` (5 × 24 = 120 garments by default) so a very
+   * large closet never turns the builder into an unbounded request chain.
+   */
+  async getAllGarments(
+    maxPages = 5,
+    signal?: AbortSignal,
+  ): Promise<Garment[]> {
+    const garments: Garment[] = []
+    let cursor: string | null = null
+
+    for (let page = 0; page < maxPages; page += 1) {
+      const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+      const { items, nextCursor } = await this.getGarments(query, signal)
+      garments.push(...items)
+
+      if (!nextCursor) break
+      cursor = nextCursor
+    }
+
+    return garments
+  },
+
   async postGarment(file: File): Promise<CreateGarmentResponse> {
     const body = new FormData()
     body.append('file', file)

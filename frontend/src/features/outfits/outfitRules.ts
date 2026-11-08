@@ -1,8 +1,8 @@
-import type { GarmentCategory } from '../../lib/types'
+import type { Garment, GarmentCategory } from '../../lib/types'
 
 /**
  * Client-side mirror of `OutfitRules.Validate` on the API. It exists only to
- * disable "+ Guardar outfit" and explain why; the server always revalidates.
+ * disable "Guardar outfit" and explain why; the server always revalidates.
  */
 export interface OutfitValidation {
   canSave: boolean
@@ -10,14 +10,20 @@ export interface OutfitValidation {
   message: string | null
 }
 
+/** The only garment fields the client-side rules need. */
+export type OutfitGarment = Pick<Garment, 'category' | 'formality'>
+
 export const OUTFIT_MESSAGES = {
   invalidComposition:
     'El outfit necesita una parte superior y una inferior, o un vestido.',
   missingShoes: 'El outfit necesita calzado.',
   multipleOuterwear: 'Solo puede haber un abrigo.',
   duplicateGarment: 'No se puede repetir la misma prenda.',
+  formalitySpread:
+    'La formalidad de las prendas no puede variar más de 2 puntos.',
 } as const
 
+/** Category-only rules, kept for callers that have no garment data. */
 export function validateOutfitSelection(
   categories: readonly GarmentCategory[],
 ): OutfitValidation {
@@ -57,10 +63,37 @@ export function validateOutfitSelection(
   return { canSave: true, message: null }
 }
 
+/**
+ * Full rules: category composition plus the formality spread. This is the
+ * version the outfit builder must use.
+ */
+export function validateOutfitGarments(
+  garments: readonly OutfitGarment[],
+): OutfitValidation {
+  const composition = validateOutfitSelection(
+    garments.map((garment) => garment.category),
+  )
+  if (!composition.canSave) {
+    return composition
+  }
+
+  const formalities = garments.map((garment) => garment.formality)
+  const spread = Math.max(...formalities) - Math.min(...formalities)
+  if (spread > 2) {
+    return invalid(OUTFIT_MESSAGES.formalitySpread)
+  }
+
+  return composition
+}
+
+export function canSaveOutfit(categories: readonly GarmentCategory[]): boolean
+export function canSaveOutfit(garments: readonly OutfitGarment[]): boolean
 export function canSaveOutfit(
-  categories: readonly GarmentCategory[],
+  selection: readonly GarmentCategory[] | readonly OutfitGarment[],
 ): boolean {
-  return validateOutfitSelection(categories).canSave
+  return typeof selection[0] === 'string'
+    ? validateOutfitSelection(selection as readonly GarmentCategory[]).canSave
+    : validateOutfitGarments(selection as readonly OutfitGarment[]).canSave
 }
 
 function invalid(message: string): OutfitValidation {

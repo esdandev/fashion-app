@@ -8,6 +8,8 @@ interface OutfitCardProps {
   outfit: Outfit
   /** Demo mode: no favorite, edit or delete actions are rendered. */
   readOnly?: boolean
+  /** Opens the builder prefilled with this outfit. */
+  onEdit?: (outfit: Outfit) => void
 }
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -36,7 +38,11 @@ function friendlyError(caught: unknown, fallback: string): string {
  * actions. Mutations invalidate the `['outfits']` query so the list keeps the
  * server ordering (favorites first) and never shows optimistic destructive UI.
  */
-export function OutfitCard({ outfit, readOnly = false }: OutfitCardProps) {
+export function OutfitCard({
+  outfit,
+  readOnly = false,
+  onEdit,
+}: OutfitCardProps) {
   const queryClient = useQueryClient()
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
 
@@ -150,13 +156,24 @@ export function OutfitCard({ outfit, readOnly = false }: OutfitCardProps) {
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setIsConfirmingDelete(true)}
-                className="text-xs font-medium text-stone-500 transition-colors hover:text-red-700"
-              >
-                Eliminar
-              </button>
+              <div className="flex items-center gap-3">
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(outfit)}
+                    className="text-xs font-medium text-stone-500 transition-colors hover:text-stone-900"
+                  >
+                    Editar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingDelete(true)}
+                  className="text-xs font-medium text-stone-500 transition-colors hover:text-red-700"
+                >
+                  Eliminar
+                </button>
+              </div>
             )}
           </div>
         )}
