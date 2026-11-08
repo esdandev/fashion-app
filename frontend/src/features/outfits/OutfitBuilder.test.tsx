@@ -121,6 +121,39 @@ describe('OutfitBuilder', () => {
     expect(saveButton()).toBeEnabled()
   })
 
+  it('removes an archived garment and cannot offer it again', async () => {
+    const user = userEvent.setup()
+    const archivedShoes = garment(
+      'archivadas',
+      'Zapatillas viejas',
+      'shoes',
+      2,
+    )
+
+    render(
+      <OutfitBuilder
+        wardrobe={[camisa, jean]}
+        initialSelection={[camisa, jean, archivedShoes]}
+        onSave={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Zapatillas viejas')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Quitar Zapatillas viejas' }),
+    )
+
+    expect(screen.queryByText('Zapatillas viejas')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Quitar Zapatillas viejas' }),
+    ).not.toBeInTheDocument()
+    // The outfit is now invalid (it lost its shoes) and there is no way to
+    // bring the archived garment back.
+    expect(saveButton()).toBeDisabled()
+    expect(screen.getByText('El outfit necesita calzado.')).toBeInTheDocument()
+  })
+
   it('validates only the active selection that will be submitted', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()

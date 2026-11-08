@@ -144,6 +144,31 @@ public sealed class OutfitSuggestionTests
     }
 
     [Fact]
+    public void Drops_a_draft_whose_base_stops_being_valid_after_normalization()
+    {
+        var dress = Dress(2);
+        var top = Top(2);
+        var bottom = Bottom(2);
+        var shoes = Shoes(2);
+        var bag = Garment("bag", GarmentCategory.Bag, 2, false, "spring,summer");
+        var accessory = Garment("accessory", GarmentCategory.Accessory, 2, false, "spring,summer");
+        var wardrobe = new[] { dress, top, bottom, shoes, bag, accessory };
+
+        var draft = new OutfitDraft(
+            "Seis piezas",
+            new[] { dress.Id, top.Id, bottom.Id, shoes.Id, bag.Id, accessory.Id },
+            null,
+            "Al recortar a cinco queda un vestido con top y bottom.");
+
+        var normalized = OutfitDraftNormalizer.NormalizeAll(new[] { draft });
+        Assert.Equal(OutfitDraftNormalizer.MaxGarmentIds, Assert.Single(normalized).GarmentIds.Length);
+
+        // A dress is an alternative to separates, so truncating the sixth id is
+        // not enough: the shared rules drop the proposal instead of repairing it.
+        Assert.Empty(OutfitSuggestionValidator.KeepValid(normalized, wardrobe));
+    }
+
+    [Fact]
     public void Deduplicates_drafts_with_the_same_garment_set()
     {
         var wardrobe = new[] { Top(2), Bottom(2), Shoes(2) };

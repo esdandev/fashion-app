@@ -1,5 +1,6 @@
 using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure.Quotas;
+using FashionApp.Api.Infrastructure.RateLimiting;
 
 namespace FashionApp.Api.Features.Outfits;
 
@@ -14,7 +15,8 @@ public static class OutfitSuggestEndpoint
     {
         app.MapPost("/api/outfits/suggest", HandleAsync)
             .BlockWritesInDemo()
-            .RequireToken();
+            .RequireToken()
+            .RequireRateLimiting(ClientRateLimiting.Policy);
 
         return app;
     }

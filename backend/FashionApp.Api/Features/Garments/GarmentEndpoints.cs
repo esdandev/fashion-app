@@ -2,6 +2,7 @@ using System.Text.Json;
 using FashionApp.Api.Domain;
 using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
+using FashionApp.Api.Infrastructure.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FashionApp.Api.Features.Garments;
@@ -10,7 +11,8 @@ public static class GarmentEndpoints
 {
     public static IEndpointRouteBuilder MapGarmentEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/garments");
+        var group = app.MapGroup("/api/garments")
+            .RequireRateLimiting(ClientRateLimiting.Policy);
 
         group.MapGet("/", async (
             string? category,

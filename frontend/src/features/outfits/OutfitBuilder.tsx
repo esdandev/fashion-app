@@ -74,15 +74,17 @@ export function OutfitBuilder({
     [wardrobe],
   )
 
-  // Initial garments that are not in the active wardrobe are archived: they
-  // stay visible (and selected) so an existing outfit can be edited without
-  // losing them, but they are never offered again.
+  // Archived garments are those from the original outfit that are no longer in
+  // the active wardrobe. The section reflects the current selection: after
+  // "Quitar" the row disappears and cannot be re-added, because the garment is
+  // not offered anywhere else.
   const archivedSelection = useMemo(
     () =>
       initialSelection.filter(
-        (garment) => !wardrobeIds.has(garment.id),
+        (garment) =>
+          selectedIds.includes(garment.id) && !wardrobeIds.has(garment.id),
       ),
-    [initialSelection, wardrobeIds],
+    [initialSelection, selectedIds, wardrobeIds],
   )
 
   const garmentsById = useMemo(() => {

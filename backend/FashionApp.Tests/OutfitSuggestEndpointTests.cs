@@ -234,11 +234,117 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
         Assert.Equal(1, await SuggestionCountAsync(factory));
     }
 
+    [Fact]
+    public async Task Suggest_normalizes_an_overlong_gemini_answer_into_saveable_drafts()
+    {
+        using var overlong = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IOutfitSuggester>();
+                services.AddSingleton<IOutfitSuggester, OverlongSuggester>();
+            }));
+        await TestData.SeedGarments(
+            factory,
+            TestData.NewGarment("Camisa", GarmentCategory.Top),
+            TestData.NewGarment("Camisa negra", GarmentCategory.Top),
+            TestData.NewGarment("Jean", GarmentCategory.Bottom),
+            TestData.NewGarment("Pantalón", GarmentCategory.Bottom),
+            TestData.NewGarment("Zapatillas", GarmentCategory.Shoes),
+            TestData.NewGarment("Campera", GarmentCategory.Outerwear),
+            TestData.NewGarment("Cartera", GarmentCategory.Bag),
+            TestData.NewGarment("Bufanda", GarmentCategory.Accessory));
+
+        var client = overlong.CreateClient();
+        var response = await PostSuggestAsync(client, "trabajo");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<SuggestOutfitsResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(3, body!.Outfits.Count);
+
+        var normalized = body.Outfits[0];
+        Assert.Equal(OutfitDraftNormalizer.MaxNameLength, normalized.Name.Length);
+        Assert.Equal(OutfitDraftNormalizer.MaxOccasionLength, normalized.Occasion!.Length);
+        Assert.Equal(OutfitDraftNormalizer.MaxRationaleLength, normalized.Rationale.Length);
+        Assert.Equal(OutfitDraftNormalizer.MaxGarmentIds, normalized.GarmentIds.Length);
+
+        Assert.All(body.Outfits, draft =>
+        {
+            Assert.InRange(draft.Name.Length, 1, OutfitDraftNormalizer.MaxNameLength);
+            Assert.True(
+                draft.Occasion is null
+                || draft.Occasion.Length <= OutfitDraftNormalizer.MaxOccasionLength);
+            Assert.InRange(
+                draft.Rationale.Length,
+                0,
+                OutfitDraftNormalizer.MaxRationaleLength);
+            Assert.InRange(
+                draft.GarmentIds.Length,
+                1,
+                OutfitDraftNormalizer.MaxGarmentIds);
+        });
+
+        // Saving the normalized draft must not hit any create-endpoint limit.
+        var save = await client.PostAsJsonAsync(
+            "/api/outfits",
+            new CreateOutfitRequest(
+                normalized.Name,
+                normalized.Occasion,
+                normalized.GarmentIds,
+                "ai",
+                normalized.Rationale));
+
+        Assert.Equal(HttpStatusCode.Created, save.StatusCode);
+    }
+
+    [Fact]
+    public async Task Rate_limit_returns_429_problem_details_and_never_reaches_the_handler()
+    {
+        // Testing disables the limiter by default; this host opts back in with
+        // a two-request window.
+        using var limited = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["RateLimiting:Enabled"] = "true",
+                    ["RateLimiting:PermitLimit"] = "2"
+                }));
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IOutfitSuggester>();
+                services.AddSingleton<IOutfitSuggester, CountingSuggester>();
+            });
+        });
+        await SeedWardrobe(factory);
+        var client = limited.CreateClient();
+
+        // Different occasions avoid the suggestion cache, so every accepted
+        // request would call the suggester once.
+        var first = await PostSuggestAsync(client, "trabajo");
+        var second = await PostSuggestAsync(client, "cena");
+        var third = await PostSuggestAsync(client, "casual");
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.Equal(
+            "application/problem+json",
+            third.Content.Headers.ContentType?.MediaType);
+
+        var problem = await third.Content.ReadAsStringAsync();
+        Assert.Contains("Demasiadas solicitudes", problem);
+        Assert.Contains("límite de solicitudes por minuto", problem);
+
+        var suggester = Assert.IsType<CountingSuggester>(
+            limited.Services.GetRequiredService<IOutfitSuggester>());
+        Assert.Equal(2, suggester.Calls);
+    }
+
     [Theory]
     [InlineData("granizo")]
-    [InlineData("")]
-    [InlineData(null)]
-    public async Task Suggest_rejects_invalid_weather_with_400(string? weather)
+    [InlineData("otoño")]
+    public async Task Suggest_rejects_an_unknown_weather_with_400(string weather)
     {
         await SeedWardrobe(factory);
 
@@ -249,6 +355,25 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(0, await TotalUsageCountAsync(factory));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Suggest_defaults_to_temperate_when_the_weather_is_missing(string? weather)
+    {
+        await SeedWardrobe(factory);
+
+        var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/outfits/suggest",
+            new { occasion = "trabajo", weather });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<SuggestOutfitsResponse>();
+        Assert.NotNull(body);
+        Assert.NotEmpty(body!.Outfits);
+        Assert.Equal(1, await SuggestionCountAsync(factory));
     }
 
     [Fact]
@@ -397,6 +522,50 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
         {
             Calls++;
             throw new HttpRequestException("El proveedor de IA no está disponible.");
+        }
+    }
+
+    /// <summary>
+    /// Returns four distinct proposals with text and ids beyond the saveable
+    /// limits, mimicking an overlong Gemini answer.
+    /// </summary>
+    private sealed class OverlongSuggester : IOutfitSuggester
+    {
+        public Task<IReadOnlyList<OutfitDraft>> SuggestAsync(
+            OutfitSuggestionContext context,
+            CancellationToken ct)
+        {
+            var tops = context.Wardrobe.Where(g => g.Category == "top").ToList();
+            var bottoms = context.Wardrobe.Where(g => g.Category == "bottom").ToList();
+            var shoes = context.Wardrobe.Single(g => g.Category == "shoes");
+            var outerwear = context.Wardrobe.Single(g => g.Category == "outerwear");
+            var bag = context.Wardrobe.Single(g => g.Category == "bag");
+            var accessory = context.Wardrobe.Single(g => g.Category == "accessory");
+
+            var drafts = new List<OutfitDraft>
+            {
+                new(
+                    new string('N', 300),
+                    [
+                        tops[0].Id,
+                        bottoms[0].Id,
+                        shoes.Id,
+                        outerwear.Id,
+                        bag.Id,
+                        accessory.Id
+                    ],
+                    new string('O', 200),
+                    new string('R', 1000))
+            };
+
+            drafts.Add(new OutfitDraft(
+                "Alternativa 1", [tops[1].Id, bottoms[0].Id, shoes.Id], null, "ok"));
+            drafts.Add(new OutfitDraft(
+                "Alternativa 2", [tops[0].Id, bottoms[1].Id, shoes.Id], null, "ok"));
+            drafts.Add(new OutfitDraft(
+                "Alternativa 3", [tops[1].Id, bottoms[1].Id, shoes.Id], null, "ok"));
+
+            return Task.FromResult<IReadOnlyList<OutfitDraft>>(drafts);
         }
     }
 

@@ -34,8 +34,9 @@ public sealed record OutfitDraft(
     string Rationale);
 
 /// <summary>
-/// Request body for <c>POST /api/outfits/suggest</c>. The weather is validated by
-/// the suggestion service; a missing or unknown value maps to a <c>400</c>.
+/// Request body for <c>POST /api/outfits/suggest</c>. The weather is optional:
+/// a missing or blank value defaults to <c>templado</c>, while an explicitly
+/// unknown value maps to a <c>400</c>.
 /// </summary>
 public sealed record SuggestOutfitsRequest(string? Occasion, string? Weather);
 

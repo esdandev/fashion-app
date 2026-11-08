@@ -149,6 +149,39 @@ public sealed class GeminiOutfitSuggesterTests
     }
 
     [Fact]
+    public async Task Gemini_preserves_repeated_ids_so_the_validator_discards_the_whole_proposal()
+    {
+        var answer = Answer(
+            new
+            {
+                name = "Repetido",
+                itemIds = new[] { Top.Id, Top.Id, Bottom.Id, Shoes.Id },
+                occasion = "trabajo",
+                rationale = "La misma prenda aparece dos veces."
+            },
+            new
+            {
+                name = "Válido",
+                itemIds = new[] { Top.Id, Bottom.Id, Shoes.Id },
+                occasion = "trabajo",
+                rationale = "Esta propuesta sí cumple las reglas."
+            });
+        var suggester = CreateSuggester(new StubHttpHandler(Envelope(answer)));
+
+        var drafts = await suggester.SuggestAsync(Context(), default);
+
+        // The parser does not repair the answer: it keeps both occurrences so
+        // the validator can apply the shared "no repeated garment" rule.
+        Assert.Equal(2, drafts.Count);
+        Assert.Equal([Top.Id, Top.Id, Bottom.Id, Shoes.Id], drafts[0].GarmentIds);
+
+        var kept = OutfitSuggestionValidator.KeepValid(drafts, Wardrobe);
+
+        var only = Assert.Single(kept);
+        Assert.Equal("Válido", only.Name);
+    }
+
+    [Fact]
     public async Task Gemini_sends_the_expected_payload_and_prompt_context()
     {
         var answer = Answer(new

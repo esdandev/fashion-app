@@ -110,11 +110,7 @@ public sealed class OutfitSuggestionService(
         if (drafts.Count == 0)
             drafts = await TrySuggestAsync(suggester, context, wardrobe, ct);
         if (drafts.Count == 0)
-        {
-            drafts = OutfitSuggestionValidator.KeepValid(
-                await fallback.SuggestAsync(context, ct),
-                wardrobe);
-        }
+            drafts = Normalize(await fallback.SuggestAsync(context, ct), wardrobe);
 
         var result = new OutfitSuggestionResult(OutfitSuggestionStatus.Success, drafts);
         cache.Set(cacheKey, result, CacheDuration);
@@ -130,7 +126,7 @@ public sealed class OutfitSuggestionService(
         try
         {
             var drafts = await suggester.SuggestAsync(context, ct);
-            return OutfitSuggestionValidator.KeepValid(drafts ?? [], wardrobe);
+            return Normalize(drafts ?? [], wardrobe);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -142,14 +138,36 @@ public sealed class OutfitSuggestionService(
         }
     }
 
-    private static string? NormalizeWeather(string? weather) =>
-        weather?.Trim().ToLowerInvariant() switch
+    /// <summary>
+    /// The spec makes the weather optional; a missing or blank value defaults to
+    /// the temperate case. An explicitly unknown value is still invalid.
+    /// </summary>
+    private static string? NormalizeWeather(string? weather)
+    {
+        if (string.IsNullOrWhiteSpace(weather))
+            return "templado";
+
+        return weather.Trim().ToLowerInvariant() switch
         {
             "frio" or "frío" => "frio",
             "templado" => "templado",
             "calor" => "calor",
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Applies the saveable limits before validation and then caps the answer at
+    /// <see cref="OutfitDraftNormalizer.MaxDrafts"/>. Caching only ever stores
+    /// this normalized result, so a cache hit is saveable too.
+    /// </summary>
+    private static IReadOnlyList<OutfitDraft> Normalize(
+        IReadOnlyList<OutfitDraft> drafts,
+        IReadOnlyList<Garment> wardrobe) =>
+        OutfitSuggestionValidator
+            .KeepValid(OutfitDraftNormalizer.NormalizeAll(drafts), wardrobe)
+            .Take(OutfitDraftNormalizer.MaxDrafts)
+            .ToList();
 
     private static string BuildCacheKey(
         string? occasion,

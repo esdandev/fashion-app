@@ -208,9 +208,12 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
         {
             if (id.ValueKind == JsonValueKind.String
                 && Guid.TryParse(id.GetString(), out var parsed)
-                && parsed != Guid.Empty
-                && !ids.Contains(parsed))
+                && parsed != Guid.Empty)
             {
+                // Repeated ids are preserved on purpose: the validator must see
+                // the repetition and discard the whole proposal, per the spec's
+                // "no repeated garment" rule. Repairing it here would hide an
+                // invalid model answer.
                 ids.Add(parsed);
             }
         }

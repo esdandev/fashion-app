@@ -6,6 +6,7 @@ using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Demo;
 using FashionApp.Api.Infrastructure.Quotas;
+using FashionApp.Api.Infrastructure.RateLimiting;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,8 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
      // The UI shows the quota reset in minutes, so the browser must be able to
      // read Retry-After on a 429 cross-origin response.
      .WithExposedHeaders("Retry-After")));
+
+builder.Services.AddRateLimiter(ClientRateLimiting.Configure);
 
 // Resolved through DI (not read eagerly here) so WebApplicationFactory's
 // in-memory overrides are already applied when the paths are first used.
@@ -95,6 +98,7 @@ if (app.Environment.IsProduction() && !demoEnabled && usingFakeProvider)
 }
 
 app.UseCors();
+app.UseRateLimiter();
 
 app.MapGet("/", () => "Hello World!");
 

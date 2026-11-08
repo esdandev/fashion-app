@@ -4,6 +4,7 @@ using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Quotas;
+using FashionApp.Api.Infrastructure.RateLimiting;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +21,8 @@ public static class GarmentUploadEndpoint
         app.MapPost("/api/garments", HandleAsync)
             .DisableAntiforgery()
             .BlockWritesInDemo()
-            .RequireToken();
+            .RequireToken()
+            .RequireRateLimiting(ClientRateLimiting.Policy);
 
         return app;
     }
