@@ -5,19 +5,44 @@ using FashionApp.Api.Infrastructure.Ai;
 public sealed class OutfitSuggestionTests
 {
     [Fact]
-    public void Drops_drafts_with_invented_ids_and_duplicate_categories()
+    public void Drops_drafts_with_invented_ids()
     {
         var wardrobe = new[] { Top(1), Bottom(2), Shoes(3) };
         var drafts = new[]
         {
             new OutfitDraft("Bien", new[] { wardrobe[0].Id, wardrobe[1].Id, wardrobe[2].Id }, null, "ok"),
             new OutfitDraft("Inventado", new[] { Guid.NewGuid() }, null, "mal"),
-            new OutfitDraft("Dos tops", new[] { wardrobe[0].Id, Top(4).Id, wardrobe[2].Id }, null, "mal"),
         };
 
         var kept = OutfitSuggestionValidator.KeepValid(drafts, wardrobe);
-        Assert.Single(kept);
-        Assert.Equal("Bien", kept[0].Name);
+        var only = Assert.Single(kept);
+        Assert.Equal("Bien", only.Name);
+    }
+
+    [Fact]
+    public void Drops_drafts_with_duplicate_categories_using_known_ids()
+    {
+        var firstTop = Top(2);
+        var secondTop = Top(3);
+        var shoes = Shoes(2);
+        var wardrobe = new[] { firstTop, secondTop, Bottom(2), shoes };
+        var garmentIds = new[] { firstTop.Id, secondTop.Id, shoes.Id };
+
+        // Every id resolves against the wardrobe, so the unknown-id branch cannot
+        // be the reason it is dropped: the shared rules flag the duplicate top.
+        Assert.All(garmentIds, id => Assert.Contains(id, wardrobe.Select(g => g.Id)));
+        Assert.Equal(
+            OutfitRules.DuplicateGarment,
+            OutfitRules.Validate(new[] { firstTop, secondTop, shoes }).Error);
+
+        var drafts = new[]
+        {
+            new OutfitDraft("Dos tops", garmentIds, null, "mal"),
+        };
+
+        var kept = OutfitSuggestionValidator.KeepValid(drafts, wardrobe);
+
+        Assert.Empty(kept);
     }
 
     [Fact]
@@ -30,6 +55,72 @@ public sealed class OutfitSuggestionTests
         Assert.NotEmpty(drafts);
         Assert.All(drafts, d => Assert.True(OutfitRules.Validate(
             d.GarmentIds.Select(id => wardrobe.Single(g => g.Id == id)).ToList()).IsValid));
+    }
+
+    [Theory]
+    [InlineData("calor")]
+    [InlineData("frio")]
+    public async Task Treats_untagged_garments_as_season_agnostic(string weather)
+    {
+        var wardrobe = new[]
+        {
+            Top(3, seasons: ""),
+            Bottom(3, seasons: ""),
+            Shoes(3, seasons: "")
+        };
+
+        var drafts = await new RuleBasedOutfitSuggester().SuggestAsync(
+            new OutfitSuggestionContext("casual", weather, wardrobe.Select(ToSummary).ToList()), default);
+
+        var draft = Assert.Single(drafts);
+        Assert.All(draft.GarmentIds, id => Assert.Contains(id, wardrobe.Select(g => g.Id)));
+        Assert.True(OutfitRules.Validate(
+            draft.GarmentIds.Select(id => wardrobe.Single(g => g.Id == id)).ToList()).IsValid);
+    }
+
+    [Fact]
+    public async Task Rule_based_suggester_returns_at_most_three_outfits()
+    {
+        var wardrobe = new[]
+        {
+            Top(2), Top(3), Top(4),
+            Bottom(2), Bottom(3), Bottom(4),
+            Shoes(2), Shoes(3), Shoes(4)
+        };
+
+        var drafts = await new RuleBasedOutfitSuggester().SuggestAsync(
+            new OutfitSuggestionContext("casual", "templado", wardrobe.Select(ToSummary).ToList()), default);
+
+        Assert.Equal(3, drafts.Count);
+    }
+
+    [Fact]
+    public async Task Rule_based_suggester_treats_unknown_weather_as_temperate()
+    {
+        var wardrobe = new[]
+        {
+            Top(3, seasons: "winter"),
+            Bottom(3, seasons: "winter"),
+            Shoes(3, seasons: "winter")
+        };
+
+        var drafts = await new RuleBasedOutfitSuggester().SuggestAsync(
+            new OutfitSuggestionContext("casual", "granizo", wardrobe.Select(ToSummary).ToList()), default);
+
+        Assert.Single(drafts);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("ocasión rara")]
+    public async Task Accepts_null_or_unknown_occasion(string? occasion)
+    {
+        var wardrobe = new[] { Top(3), Bottom(3), Shoes(3) };
+
+        var drafts = await new RuleBasedOutfitSuggester().SuggestAsync(
+            new OutfitSuggestionContext(occasion, "templado", wardrobe.Select(ToSummary).ToList()), default);
+
+        Assert.Single(drafts);
     }
 
     [Fact]

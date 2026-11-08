@@ -217,7 +217,16 @@ public sealed class RuleBasedOutfitSuggester : IOutfitSuggester
         if (weather == "templado")
             return true;
 
-        var seasons = summary.Seasons ?? [];
+        var seasons = (summary.Seasons ?? [])
+            .Where(season => !string.IsNullOrWhiteSpace(season))
+            .ToArray();
+
+        // A garment without season tags is season-agnostic: excluding it would
+        // silently empty the suggestions of a wardrobe that was never tagged.
+        // Explicit seasons are still filtered per weather.
+        if (seasons.Length == 0)
+            return true;
+
         return weather switch
         {
             "calor" => seasons.Any(
