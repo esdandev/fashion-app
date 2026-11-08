@@ -7,6 +7,7 @@ using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using DigestEntity = FashionApp.Api.Domain.Digest;
 
 namespace FashionApp.Api.Features.Digest;
 
@@ -38,6 +39,7 @@ public static class DigestRefreshEndpoint
         IDigestGenerator generator,
         DigestRefreshGuard guard,
         AppDbContext db,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         var provided = context.Request.Headers[AdminSecretHeader].ToString();
@@ -76,7 +78,33 @@ public static class DigestRefreshEndpoint
                         "Esperá antes de volver a intentarlo.");
         }
 
-        var digest = await generator.GenerateAsync(cancellationToken);
+        DigestEntity? digest;
+        try
+        {
+            digest = await generator.GenerateAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The client went away before a result existed: do not punish the
+            // next admin attempt with an hour of cooldown.
+            guard.Reset();
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // A provider timeout or database failure must not keep the guard
+            // occupied: release it and give the admin a clear 502.
+            guard.Reset();
+            loggerFactory
+                .CreateLogger("FashionApp.Api.Features.Digest.DigestRefresh")
+                .LogError(exception, "Falló la generación manual del digest.");
+
+            return Results.Problem(
+                statusCode: StatusCodes.Status502BadGateway,
+                title: "Digest no disponible",
+                detail: NotGeneratedDetail);
+        }
+
         if (digest is null)
         {
             // The generator leaves the previous digest untouched on an empty

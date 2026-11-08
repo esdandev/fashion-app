@@ -13,6 +13,10 @@ public sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
 {
     private DateTimeOffset _now = start;
 
+    // Keep "server local time" deterministic in tests regardless of the
+    // machine's time zone.
+    public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
     public override DateTimeOffset GetUtcNow() => _now;
 
     public void Advance(TimeSpan delta) => _now += delta;

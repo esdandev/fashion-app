@@ -33,6 +33,19 @@ public sealed class DigestRefreshGuard(TimeProvider clock)
     }
 
     /// <summary>
+    /// Releases the cooldown after a run that did not really happen (provider
+    /// timeout, unexpected failure, aborted request), so a transient outage
+    /// does not lock the admin out for an hour.
+    /// </summary>
+    public void Reset()
+    {
+        lock (_gate)
+        {
+            _last = null;
+        }
+    }
+
+    /// <summary>
     /// Time left before another refresh is allowed, or <c>null</c> when there
     /// is no active cooldown.
     /// </summary>

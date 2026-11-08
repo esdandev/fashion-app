@@ -59,6 +59,20 @@ public sealed class DigestRefreshTests
     }
 
     [Fact]
+    public void Guard_reset_releases_the_cooldown()
+    {
+        var guard = new DigestRefreshGuard(
+            new ManualTimeProvider(DateTimeOffset.Parse("2026-11-08T10:00:00Z")));
+
+        Assert.True(guard.TryBegin());
+        Assert.False(guard.TryBegin());
+
+        guard.Reset();
+
+        Assert.True(guard.TryBegin());
+    }
+
+    [Fact]
     public async Task Refresh_returns_429_with_retry_after_during_the_cooldown()
     {
         using var factory = new TestAppFactory { AdminSecret = AdminSecret };
@@ -74,6 +88,13 @@ public sealed class DigestRefreshTests
         Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
         Assert.NotNull(limited.Headers.RetryAfter);
         Assert.True(limited.Headers.RetryAfter!.Delta > TimeSpan.Zero);
+        // Prove this is the cooldown guard, not the per-IP limiter (whose
+        // title is "Demasiadas solicitudes").
+        var problem = await limited.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Refresh en espera", problem.GetProperty("title").GetString());
+        Assert.Contains(
+            "Ya se generó el digest hace menos de una hora",
+            problem.GetProperty("detail").GetString());
     }
 
     [Fact]
@@ -85,8 +106,13 @@ public sealed class DigestRefreshTests
             Demo = true
         };
         var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add(AdminSecretHeader, AdminSecret);
 
+        // Demo blocks the POST before the handler inspects the secret: a
+        // missing header is 403, not 401.
+        var anonymous = await client.PostAsync("/api/digest/refresh", null);
+        Assert.Equal(HttpStatusCode.Forbidden, anonymous.StatusCode);
+
+        client.DefaultRequestHeaders.Add(AdminSecretHeader, AdminSecret);
         var response = await client.PostAsync("/api/digest/refresh", null);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -135,6 +161,31 @@ public sealed class DigestRefreshTests
             .SingleAsync();
         Assert.Equal(new DateOnly(2026, 11, 7), digest.Date);
         Assert.Equal("Anterior", digest.Summary);
+    }
+
+    [Fact]
+    public async Task Refresh_returns_502_and_releases_the_cooldown_when_generation_throws()
+    {
+        using var baseFactory = new TestAppFactory { AdminSecret = AdminSecret };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IDigestGenerator>();
+                services.AddScoped<IDigestGenerator, ThrowingDigestGenerator>();
+            }));
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(AdminSecretHeader, AdminSecret);
+
+        var first = await client.PostAsync("/api/digest/refresh", null);
+        Assert.Equal(HttpStatusCode.BadGateway, first.StatusCode);
+        var problem = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Digest no disponible", problem.GetProperty("title").GetString());
+
+        // The failed run must not lock the admin out: the second attempt hits
+        // the generator again instead of returning 429.
+        var second = await client.PostAsync("/api/digest/refresh", null);
+        Assert.Equal(HttpStatusCode.BadGateway, second.StatusCode);
     }
 
     [Fact]
@@ -219,5 +270,11 @@ public sealed class DigestRefreshTests
     {
         public Task<DigestEntity?> GenerateAsync(CancellationToken ct) =>
             Task.FromResult<DigestEntity?>(null);
+    }
+
+    private sealed class ThrowingDigestGenerator : IDigestGenerator
+    {
+        public Task<DigestEntity?> GenerateAsync(CancellationToken ct) =>
+            throw new InvalidOperationException("El proveedor de resumen no está disponible.");
     }
 }

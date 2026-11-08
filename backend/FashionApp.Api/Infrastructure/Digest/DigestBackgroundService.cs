@@ -26,11 +26,11 @@ public sealed class DigestBackgroundService(
         var runAt = ParseRunAt();
 
         if (configuration.GetValue("Digest:GenerateOnStartup", true))
-            await RunSafelyAsync(onlyWhenMissingToday: true, stoppingToken);
+            await RunStartupAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var delay = DelayUntilNextRun(runAt, clock.GetLocalNow());
+            var delay = DelayUntilNextRun(clock, runAt);
             logger.LogInformation(
                 "Próxima generación del digest a las {RunAt} (en {Delay}).",
                 runAt,
@@ -48,6 +48,13 @@ public sealed class DigestBackgroundService(
             await RunSafelyAsync(onlyWhenMissingToday: false, stoppingToken);
         }
     }
+
+    /// <summary>
+    /// Startup branch, exposed to tests so the "already generated today" and
+    /// failure-swallowing paths can be exercised without waiting for a clock.
+    /// </summary>
+    internal Task RunStartupAsync(CancellationToken ct) =>
+        RunSafelyAsync(onlyWhenMissingToday: true, ct);
 
     private async Task RunSafelyAsync(bool onlyWhenMissingToday, CancellationToken ct)
     {
@@ -117,8 +124,9 @@ public sealed class DigestBackgroundService(
     /// <summary>
     /// Server local wall-clock delay until the next <paramref name="runAt"/>.
     /// </summary>
-    private static TimeSpan DelayUntilNextRun(TimeOnly runAt, DateTimeOffset localNow)
+    internal static TimeSpan DelayUntilNextRun(TimeProvider clock, TimeOnly runAt)
     {
+        var localNow = clock.GetLocalNow();
         var next = localNow.Date.Add(runAt.ToTimeSpan());
         var delay = next - localNow.DateTime;
 
