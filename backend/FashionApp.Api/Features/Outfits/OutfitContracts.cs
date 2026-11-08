@@ -13,3 +13,20 @@ public sealed record OutfitDto(
     bool IsFavorite,
     DateTimeOffset CreatedAt,
     IReadOnlyList<OutfitItemDto> Items);
+
+/// <summary>
+/// Manual outfit creation. <c>GarmentIds</c> is kept in request order: that
+/// order becomes <c>OutfitItem.SortOrder</c>.
+/// </summary>
+public sealed record CreateOutfitRequest(string Name, string? Occasion, Guid[] GarmentIds);
+
+/// <summary>
+/// Partial update. A <c>null</c> field means "leave unchanged"; an empty
+/// <c>Occasion</c> clears it. When <c>GarmentIds</c> is present the whole item
+/// set is replaced and revalidated.
+/// </summary>
+public sealed record PatchOutfitRequest(
+    string? Name,
+    string? Occasion,
+    bool? IsFavorite,
+    Guid[]? GarmentIds);
