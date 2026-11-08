@@ -87,6 +87,24 @@ async function seedWardrobe(request: APIRequestContext) {
   })
 }
 
+/**
+ * The isolated database is reset per run, not per test. CI retries and partial
+ * reruns reuse it, so every outfit test starts from an empty list; otherwise a
+ * retry would find the cards created by its failed first attempt.
+ */
+test.beforeEach(async ({ request }) => {
+  const response = await request.get(`${API_URL}/api/outfits`)
+  expect(response.ok()).toBeTruthy()
+
+  const outfits = (await response.json()) as Array<{ id: string }>
+  for (const outfit of outfits) {
+    const deleted = await request.delete(
+      `${API_URL}/api/outfits/${outfit.id}`,
+    )
+    expect(deleted.ok()).toBeTruthy()
+  }
+})
+
 test('sugiere un outfit y lo guarda en el listado', async ({
   page,
   request,
@@ -125,6 +143,12 @@ test('crea un outfit manualmente y edita el nombre', async ({
   page,
   request,
 }) => {
+  // A retry starts from a clean outfit list, but unique names keep the card
+  // locators unambiguous even if a previous attempt failed after saving.
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const originalName = `Look manual ${suffix}`
+  const renamedName = `Look renombrado ${suffix}`
+
   await seedWardrobe(request)
   await page.goto('/outfits')
 
@@ -136,25 +160,24 @@ test('crea un outfit manualmente y edita el nombre', async ({
     .getByRole('checkbox', { name: /Pantalón sastre beige/ })
     .click()
   await builder.getByRole('checkbox', { name: /Zapatillas blancas/ }).click()
-  await builder.getByLabel('Nombre').fill('Look manual de prueba')
+  await builder.getByLabel('Nombre').fill(originalName)
   await builder.getByRole('button', { name: 'Guardar outfit' }).click()
 
   const createdCard = page
     .getByRole('article')
-    .filter({ hasText: 'Look manual de prueba' })
+    .filter({ hasText: originalName })
+    .first()
   await expect(createdCard).toBeVisible()
 
   await createdCard.getByRole('button', { name: 'Editar' }).click()
   const editor = page.getByTestId('outfit-builder')
-  await editor.getByLabel('Nombre').fill('Look manual renombrado')
+  await editor.getByLabel('Nombre').fill(renamedName)
   await editor.getByRole('button', { name: 'Guardar outfit' }).click()
 
   await expect(
-    page
-      .getByRole('article')
-      .filter({ hasText: 'Look manual renombrado' }),
+    page.getByRole('article').filter({ hasText: renamedName }).first(),
   ).toBeVisible()
   await expect(
-    page.getByRole('article').filter({ hasText: 'Look manual de prueba' }),
+    page.getByRole('article').filter({ hasText: originalName }),
   ).toHaveCount(0)
 })

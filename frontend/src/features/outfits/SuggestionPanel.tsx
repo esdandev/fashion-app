@@ -50,7 +50,7 @@ function quotaMessage(error: ApiError): string {
     }.`
   }
 
-  return 'Se alcanzó la cuota diaria de sugerencias. Probá de nuevo mañana o aumentá Ai:DailySuggestionLimit.'
+  return 'Se alcanzó la cuota diaria de sugerencias. Probá de nuevo mañana.'
 }
 
 function errorMessage(caught: unknown): string {
@@ -90,15 +90,6 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
   )
   const canMakeOutfit = hasPossibleOutfit(wardrobe)
 
-  const suggestMutation = useMutation({
-    mutationFn: () =>
-      api.suggestOutfits({
-        occasion: occasion.trim() ? occasion.trim() : null,
-        weather,
-      }),
-    onSuccess: () => setSavedKeys([]),
-  })
-
   const saveMutation = useMutation({
     mutationFn: (draft: OutfitDraft) =>
       api.createOutfit({
@@ -111,6 +102,20 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
     onSuccess: (_saved, draft) => {
       setSavedKeys((current) => [...new Set([...current, draftKey(draft)])])
       void queryClient.invalidateQueries({ queryKey: ['outfits'] })
+    },
+  })
+
+  const suggestMutation = useMutation({
+    mutationFn: () =>
+      api.suggestOutfits({
+        occasion: occasion.trim() ? occasion.trim() : null,
+        weather,
+      }),
+    onSuccess: () => {
+      setSavedKeys([])
+      // A successful generation starts a new proposal batch; a save error from
+      // the previous batch must not linger next to the new cards.
+      saveMutation.reset()
     },
   })
 

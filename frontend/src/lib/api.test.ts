@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api } from './api'
+import { ApiError, api } from './api'
 import type { Garment } from './types'
 
 function garment(id: string): Garment {
@@ -72,5 +72,27 @@ describe('ApiError Retry-After', () => {
       status: 429,
       retryAfterSeconds: 120,
     })
+  })
+
+  it('leaves Retry-After undefined when the header is missing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: 'Se alcanzó el límite de sugerencias de IA para hoy (UTC).',
+        }),
+        {
+          status: 429,
+          headers: { 'Content-Type': 'application/problem+json' },
+        },
+      ),
+    )
+
+    const caught = await api
+      .suggestOutfits({ weather: 'templado' })
+      .catch((error: unknown) => error)
+
+    expect(caught).toBeInstanceOf(ApiError)
+    expect((caught as ApiError).status).toBe(429)
+    expect((caught as ApiError).retryAfterSeconds).toBeUndefined()
   })
 })

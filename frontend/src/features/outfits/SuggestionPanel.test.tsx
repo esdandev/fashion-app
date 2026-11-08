@@ -165,4 +165,182 @@ describe('SuggestionPanel', () => {
       ),
     ).toBeInTheDocument()
   })
+
+  it('falls back to a clear quota message when Retry-After is absent', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(api, 'getAllGarments').mockResolvedValue([
+      camisa,
+      jean,
+      zapatillas,
+    ])
+    vi.spyOn(api, 'suggestOutfits').mockRejectedValue(
+      new ApiError(
+        'Se alcanzó el límite de sugerencias de IA para hoy (UTC).',
+        429,
+      ),
+    )
+    renderPanel()
+
+    const generate = await screen.findByRole('button', { name: 'Generar' })
+    await waitFor(() => expect(generate).toBeEnabled())
+    await user.click(generate)
+
+    expect(
+      await screen.findByText(
+        /cuota diaria de sugerencias.*Probá de nuevo mañana/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Ai:DailySuggestionLimit/i),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state when the API returns no proposals', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(api, 'getAllGarments').mockResolvedValue([
+      camisa,
+      jean,
+      zapatillas,
+    ])
+    vi.spyOn(api, 'suggestOutfits').mockResolvedValue({ outfits: [] })
+    renderPanel()
+
+    const generate = await screen.findByRole('button', { name: 'Generar' })
+    await waitFor(() => expect(generate).toBeEnabled())
+    await user.click(generate)
+
+    expect(
+      await screen.findByText(
+        /No encontramos combinaciones para esa ocasión y clima/,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a generic suggest error and retries the request', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(api, 'getAllGarments').mockResolvedValue([
+      camisa,
+      jean,
+      zapatillas,
+    ])
+    const suggest = vi
+      .spyOn(api, 'suggestOutfits')
+      .mockRejectedValueOnce(
+        new ApiError('El servicio de sugerencias no está disponible.', 500),
+      )
+      .mockResolvedValueOnce({
+        outfits: [
+          {
+            name: 'Propuesta recuperada',
+            garmentIds: ['camisa', 'jean', 'zapatillas'],
+            occasion: null,
+            rationale: 'La segunda llamada funcionó.',
+          },
+        ],
+      })
+    renderPanel()
+
+    const generate = await screen.findByRole('button', { name: 'Generar' })
+    await waitFor(() => expect(generate).toBeEnabled())
+    await user.click(generate)
+
+    expect(
+      await screen.findByText('No pudimos generar sugerencias.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('El servicio de sugerencias no está disponible.'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    await waitFor(() => expect(suggest).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('Propuesta recuperada')).toBeInTheDocument()
+  })
+
+  it('shows a save failure without losing the proposal', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(api, 'getAllGarments').mockResolvedValue([
+      camisa,
+      jean,
+      zapatillas,
+    ])
+    vi.spyOn(api, 'suggestOutfits').mockResolvedValue({
+      outfits: [
+        {
+          name: 'Propuesta de dos piezas',
+          garmentIds: ['camisa', 'jean', 'zapatillas'],
+          occasion: 'trabajo',
+          rationale: 'Ideal para trabajar con clima templado.',
+        },
+      ],
+    })
+    vi.spyOn(api, 'createOutfit').mockRejectedValue(
+      new ApiError('No pudimos guardar el outfit en este momento.', 500),
+    )
+    renderPanel()
+
+    const generate = await screen.findByRole('button', { name: 'Generar' })
+    await waitFor(() => expect(generate).toBeEnabled())
+    await user.click(generate)
+    await screen.findByText('Outfit sugerido')
+
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(
+      await screen.findByText('No pudimos guardar el outfit en este momento.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled()
+  })
+
+  it('clears a previous save error when a new suggestion succeeds', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(api, 'getAllGarments').mockResolvedValue([
+      camisa,
+      jean,
+      zapatillas,
+    ])
+    vi.spyOn(api, 'suggestOutfits')
+      .mockResolvedValueOnce({
+        outfits: [
+          {
+            name: 'Primera propuesta',
+            garmentIds: ['camisa', 'jean', 'zapatillas'],
+            occasion: 'trabajo',
+            rationale: 'Primera tanda.',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        outfits: [
+          {
+            name: 'Segunda propuesta',
+            garmentIds: ['camisa', 'jean', 'zapatillas'],
+            occasion: 'cena',
+            rationale: 'Segunda tanda.',
+          },
+        ],
+      })
+    vi.spyOn(api, 'createOutfit').mockRejectedValue(
+      new ApiError('El guardado falló en la primera tanda.', 500),
+    )
+    renderPanel()
+
+    const generate = await screen.findByRole('button', { name: 'Generar' })
+    await waitFor(() => expect(generate).toBeEnabled())
+    await user.click(generate)
+    await screen.findByText('Primera propuesta')
+
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(
+      await screen.findByText('El guardado falló en la primera tanda.'),
+    ).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Ocasión'), 'cena')
+    await user.click(generate)
+
+    expect(await screen.findByText('Segunda propuesta')).toBeInTheDocument()
+    expect(
+      screen.queryByText('El guardado falló en la primera tanda.'),
+    ).not.toBeInTheDocument()
+  })
 })
