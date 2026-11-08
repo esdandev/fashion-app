@@ -4,7 +4,7 @@ tags:
   - moda
   - ia
   - portfolio
-estado: implementado
+estado: diseño
 fecha: 2026-11-07
 ---
 
@@ -255,13 +255,13 @@ Convenciones: errores con `ProblemDetails`; validación con DataAnnotations o Fl
 
 **Digest** — `Id`, `Date` (único, solo fecha), `Summary`, `GeneratedAt`.
 
-**DigestItem** — `Id`, `DigestId`, `Title`, `Url` (único por digest), `Source`, `Summary`, `StyleTagsJson`, `ImageUrl?`, `PublishedAt`, `SortOrder`.
+**DigestItem** — `Id`, `DigestId`, `Title`, `Url` (único), `Source`, `Summary`, `StyleTagsJson`, `ImageUrl?`, `PublishedAt`, `SortOrder`.
 
 ### Índices y configuración SQLite
 
 - `Garment(Category)`, `Garment(CreatedAt DESC)`, `Garment(IsArchived)`.
 - `Outfit(CreatedAt DESC)`, `Outfit(IsFavorite)`.
-- `Digest(Date)` único; `DigestItem(DigestId, Url)` único; `DigestItem(DigestId, SortOrder)`.
+- `Digest(Date)` único; `DigestItem(Url)` único; `DigestItem(DigestId, SortOrder)`.
 - `PRAGMA journal_mode=WAL`, `busy_timeout=5000`, `foreign_keys=ON`.
 - `AsNoTracking()` y proyección a DTO en todas las lecturas; nada de cargar entidades completas para listados.
 
@@ -388,14 +388,14 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | **0. Base** | Repo, Docker Compose, SQLite, health check, front con layout de tres secciones. | La app levanta y navega vacía sin errores. |
 | **1. Guardarropa** | Alta con foto, análisis IA, confirmación, grilla y filtros. | Subir 10 prendas reales y encontrarlas todas con atributos correctos. |
 | **2. Outfits** | Sugerencia IA validada, editor manual, guardado y favoritos. | Se generan outfits solo con prendas existentes y se pueden editar. |
-| **3. Hoy** | Job RSS, resumen diario, relación con prendas, caché. | El digest aparece al abrir la app y sobrevive a un reinicio. **Implementada y verificada.** |
+| **3. Hoy** | Job RSS, resumen diario, relación con prendas, caché. | El digest aparece al abrir la app y sobrevive a un reinicio. |
 | **4. Portfolio** | Pulido visual, datos de ejemplo, README con capturas, deploy y métricas. | Link público funcionando y Lighthouse móvil en verde. |
 
 > Plan detallado de la Fase 0–1: [[Fashion App - Plan Fase 0-1]]
 >
 > Plan detallado de la Fase 2 (outfits): [[Fashion App - Plan Fase 2]] — **implementada y verificada**.
 >
-> Plan detallado de la Fase 3 (Hoy): [[Fashion App - Plan Fase 3]] — **implementada y verificada**. Sigue la Fase 4 (portfolio).
+> Plan detallado de la Fase 3 (Hoy): [[Fashion App - Plan Fase 3]] — **implementada y verificada**. Sigue la Fase 4 (portfolio/deploy).
 
 ## Riesgos
 
@@ -438,6 +438,9 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 23 | Caché de sugerencias antes de consumir cuota | Consumir cuota primero | Una respuesta cacheada no cuesta IA ni gasta el presupuesto diario. |
 | 24 | Rate limit por IP configurable + clima opcional | Sin rate limit / clima obligatorio | El spec pide ambos; el clima faltante usa `templado` y un valor desconocido sigue siendo `400`. |
 | 25 | Fallback por reglas cuando la IA no devuelve outfits válidos | Devolver error | La sugerencia siempre responde algo útil; el usuario nunca ve un 500 por una respuesta mala del modelo. |
+| 26 | Demo siembra un digest de muestra y no arranca el job diario | Generar el digest con IA en la demo | La portada pública funciona sin costo, sin feeds y sin riesgo de datos personales. |
+| 27 | El validador descarta notas sin título o sin resumen | Aceptar links sin resumen | El anti-objetivo del spec prohíbe un feed de links vacíos. |
+| 28 | El cooldown de refresh se libera si la generación lanza una excepción | Mantener el bloqueo una hora | Un fallo del proveedor no debe impedir reintentar cuando el servicio vuelve. |
 
 ## Bitácora
 
@@ -449,4 +452,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | ImageSharp reemplazado por Magick.NET (Apache 2.0) porque la versión 4 bloquea el publish Release sin licencia. |
 | 2026-11-07 | Fase 0–1 implementada y verificada: 91 tests backend, 19 frontend, 8 E2E, build y lint limpios. Flujo final analyze → confirm, data root unificado y demo aislada. |
 | 2026-11-08 | Fase 2 implementada y verificada: outfits con ítems, reglas de composición, CRUD manual, sugerencias IA con validación, fallback por reglas, cuota por tipo y caché; panel de sugerencias, collage y edición en el front. 192 tests backend, 46 frontend y 10 E2E en verde. |
-| 2026-11-08 | Fase 3 implementada y verificada: digest diario desde feeds RSS con fake determinista, resumen IA validado (URLs y tags inventados descartados), upsert transaccional por fecha, `GET /api/digest/today` público con ETag/304, matching por `StyleTags` con privacidad por token, refresh admin con cooldown y portada Hoy con skeletons, vacío y error. 239 tests backend, 51 frontend y 11 E2E en verde; build y lint limpios. |
+| 2026-11-08 | Fase 3 implementada y verificada: digest diario desde RSS, resumen con IA validada, portada Hoy, matching por `StyleTags`, ETag, job diario y refresh admin con cooldown. 247 tests backend, 51 frontend y 11 E2E en verde. |
