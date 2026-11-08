@@ -32,7 +32,21 @@ public static class OutfitEndpoints
                     o.CreatedAt,
                     o.Items
                         .OrderBy(i => i.SortOrder)
-                        .Select(i => new OutfitItemRow(i.Garment, i.Layer, i.SortOrder))
+                        .Select(i => new OutfitItemRow(
+                            new GarmentQuery.GarmentRow(
+                                i.Garment.Id,
+                                i.Garment.Name,
+                                i.Garment.Category,
+                                i.Garment.ColorName,
+                                i.Garment.ColorHex,
+                                i.Garment.Formality,
+                                i.Garment.Confidence,
+                                i.Garment.Seasons,
+                                i.Garment.StyleTagsJson,
+                                i.Garment.ContentHash,
+                                i.Garment.CreatedAt),
+                            i.Layer,
+                            i.SortOrder))
                         .ToList()))
                 .ToListAsync(cancellationToken);
 
@@ -67,5 +81,5 @@ public static class OutfitEndpoints
         DateTimeOffset CreatedAt,
         List<OutfitItemRow> Items);
 
-    private sealed record OutfitItemRow(Garment Garment, int Layer, int SortOrder);
+    private sealed record OutfitItemRow(GarmentQuery.GarmentRow Garment, int Layer, int SortOrder);
 }

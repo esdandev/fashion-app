@@ -112,7 +112,11 @@ public static class GarmentQuery
         MediaUrl(garment.ContentHash),
         ThumbUrl(garment.ContentHash));
 
-    private static GarmentDto ToDto(GarmentRow row) => new(
+    /// <summary>
+    /// Projects a slim row (only the columns the DTO exposes) so list queries do
+    /// not materialize the whole garment, including analysis JSON and file paths.
+    /// </summary>
+    public static GarmentDto ToDto(GarmentRow row) => new(
         row.Id,
         row.Name,
         CategoryToApi(row.Category),
@@ -184,7 +188,7 @@ public static class GarmentQuery
         }
     }
 
-    private sealed record GarmentRow(
+    public sealed record GarmentRow(
         Guid Id,
         string Name,
         GarmentCategory Category,
