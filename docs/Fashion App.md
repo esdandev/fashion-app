@@ -392,6 +392,8 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | **4. Portfolio** | Pulido visual, datos de ejemplo, README con capturas, deploy y métricas. | Link público funcionando y Lighthouse móvil en verde. |
 
 > Plan detallado de la Fase 0–1: [[Fashion App - Plan Fase 0-1]]
+>
+> Plan detallado de la Fase 2 (outfits): [[Fashion App - Plan Fase 2]] — **implementada y verificada**. Sigue la Fase 3 (Hoy) y la Fase 4 (portfolio).
 
 ## Riesgos
 
@@ -430,6 +432,10 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 19 | Flujo analyze → confirm | Crear la prenda al subir la foto | Evita prendas huérfanas si el usuario cancela y respeta la confirmación del usuario. |
 | 20 | Un solo `Data:Root` para base e imágenes | Rutas separadas | Backup, reset y privacidad en un único directorio; la demo usa `data/demo`. |
 | 21 | Fail-fast en producción sin token o con IA fake | Arrancar igual | Evita exponer el guardarropa o servir análisis falsos por un descuido de configuración. |
+| 22 | Vestido exclusivo: no se combina con top ni bottom | Permitir layering | El spec dice "o bien top + bottom, o bien un vestido"; la regla queda determinista y testeada. |
+| 23 | Caché de sugerencias antes de consumir cuota | Consumir cuota primero | Una respuesta cacheada no cuesta IA ni gasta el presupuesto diario. |
+| 24 | Rate limit por IP configurable + clima opcional | Sin rate limit / clima obligatorio | El spec pide ambos; el clima faltante usa `templado` y un valor desconocido sigue siendo `400`. |
+| 25 | Fallback por reglas cuando la IA no devuelve outfits válidos | Devolver error | La sugerencia siempre responde algo útil; el usuario nunca ve un 500 por una respuesta mala del modelo. |
 
 ## Bitácora
 
