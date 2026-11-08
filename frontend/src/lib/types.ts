@@ -113,6 +113,64 @@ export interface PatchGarmentRequest {
   styleTags?: string[]
 }
 
+export type OutfitSource = 'ai' | 'manual'
+
+/** One garment in a saved outfit, in display order. */
+export interface OutfitItem {
+  garment: Garment
+  layer: number
+  sortOrder: number
+}
+
+/** Mirrors `OutfitDto` on the API. */
+export interface Outfit {
+  id: string
+  name: string
+  occasion: string | null
+  source: OutfitSource
+  rationale: string | null
+  isFavorite: boolean
+  createdAt: string
+  items: OutfitItem[]
+}
+
+/** Mirrors `CreateOutfitRequest`; item order becomes the collage order. */
+export interface CreateOutfitRequest {
+  name: string
+  occasion?: string | null
+  garmentIds: string[]
+}
+
+/** Mirrors `PatchOutfitRequest`. Only sent fields are changed. */
+export interface PatchOutfitRequest {
+  name?: string
+  occasion?: string | null
+  isFavorite?: boolean
+  garmentIds?: string[]
+}
+
+/** Manual weather selection; matches the values normalized by the API. */
+export type OutfitWeather = 'frio' | 'templado' | 'calor'
+
+/** Mirrors `SuggestOutfitsRequest`. */
+export interface SuggestOutfitsRequest {
+  occasion?: string | null
+  weather: OutfitWeather
+}
+
+/** A proposal that has not been saved yet. */
+export interface OutfitDraft {
+  name: string
+  garmentIds: string[]
+  occasion: string | null
+  rationale: string
+}
+
+/** Mirrors `SuggestOutfitsResponse`. */
+export interface SuggestOutfitsResponse {
+  outfits: OutfitDraft[]
+}
+
 /** RFC 7807 payload the API returns for validation and auth errors. */
 export interface ProblemDetails {
   type?: string

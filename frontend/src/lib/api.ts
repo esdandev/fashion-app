@@ -3,11 +3,16 @@ import type {
   AppConfig,
   ConfirmGarmentRequest,
   CreateGarmentResponse,
+  CreateOutfitRequest,
   Garment,
   GarmentAnalysisProposal,
   GarmentListResponse,
+  Outfit,
   PatchGarmentRequest,
+  PatchOutfitRequest,
   ProblemDetails,
+  SuggestOutfitsRequest,
+  SuggestOutfitsResponse,
 } from './types'
 
 const API_BASE_URL = (
@@ -190,6 +195,81 @@ export const api = {
     )
 
     return parseResponse<Garment>(response)
+  },
+
+  /** Saved outfits, already ordered by favorite and creation date. */
+  async getOutfits(signal?: AbortSignal): Promise<Outfit[]> {
+    const response = await fetch(`${API_BASE_URL}/api/outfits`, {
+      headers: authHeaders(),
+      signal,
+    })
+
+    return parseResponse<Outfit[]>(response)
+  },
+
+  async createOutfit(request: CreateOutfitRequest): Promise<Outfit> {
+    const response = await fetch(`${API_BASE_URL}/api/outfits`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    return parseResponse<Outfit>(response)
+  },
+
+  async patchOutfit(
+    id: string,
+    request: PatchOutfitRequest,
+  ): Promise<Outfit> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/outfits/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      },
+    )
+
+    return parseResponse<Outfit>(response)
+  },
+
+  /** Deletes an outfit. The API answers `204 No Content`. */
+  async deleteOutfit(id: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/outfits/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+        headers: authHeaders(),
+      },
+    )
+
+    if (response.ok) {
+      return
+    }
+
+    await parseResponse<never>(response)
+  },
+
+  /** AI (or fallback) proposals; nothing is persisted until `createOutfit`. */
+  async suggestOutfits(
+    request: SuggestOutfitsRequest,
+  ): Promise<SuggestOutfitsResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/outfits/suggest`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    return parseResponse<SuggestOutfitsResponse>(response)
   },
 }
 
