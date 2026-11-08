@@ -20,4 +20,5 @@ public sealed class Outfit
     public bool IsFavorite { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public List<OutfitItem> Items { get; set; } = [];
 }

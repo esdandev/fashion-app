@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FashionApp.Api.Features.Garments;
+using FashionApp.Api.Features.Outfits;
 using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
 using FashionApp.Api.Infrastructure.Ai;
@@ -105,6 +106,7 @@ app.MapGarmentUploadEndpoint();
 app.MapGarmentAnalyzeEndpoint();
 app.MapGarmentConfirmEndpoint();
 app.MapGarmentReanalyzeEndpoint();
+app.MapOutfitEndpoints();
 
 app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, DataPaths paths) =>
 {

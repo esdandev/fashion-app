@@ -1,12 +1,20 @@
 using FashionApp.Api.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace FashionApp.Api.Infrastructure;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    // The spec defines the persisted values in lowercase; the enum names are
+    // PascalCase, so a plain ToString() conversion would drift from the API.
+    private static readonly ValueConverter<OutfitSource, string> OutfitSourceConverter = new(
+        source => source == OutfitSource.Ai ? "ai" : "manual",
+        value => value == "ai" ? OutfitSource.Ai : OutfitSource.Manual);
+
     public DbSet<Garment> Garments => Set<Garment>();
     public DbSet<Outfit> Outfits => Set<Outfit>();
+    public DbSet<OutfitItem> OutfitItems => Set<OutfitItem>();
     public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -56,10 +64,25 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         outfit.HasKey(o => o.Id);
         outfit.Property(o => o.Name).HasMaxLength(120).IsRequired();
         outfit.Property(o => o.Occasion).HasMaxLength(60);
-        outfit.Property(o => o.Source).HasConversion<string>().HasMaxLength(10).IsRequired();
+        outfit.Property(o => o.Source).HasConversion(OutfitSourceConverter).HasMaxLength(10).IsRequired();
         outfit.Property(o => o.Rationale).HasMaxLength(600);
         outfit.HasIndex(o => o.CreatedAt);
         outfit.HasIndex(o => o.IsFavorite);
+
+        var outfitItem = modelBuilder.Entity<OutfitItem>();
+        outfitItem.ToTable("OutfitItems");
+        outfitItem.HasKey(i => new { i.OutfitId, i.GarmentId });
+        outfitItem.HasOne(i => i.Outfit)
+            .WithMany(o => o.Items)
+            .HasForeignKey(i => i.OutfitId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Removing a garment from the catalog must never silently delete history:
+        // an outfit keeps its pieces until the outfit itself is archived/deleted.
+        outfitItem.HasOne(i => i.Garment)
+            .WithMany()
+            .HasForeignKey(i => i.GarmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+        outfitItem.HasIndex(i => new { i.OutfitId, i.SortOrder });
 
         var usageCounter = modelBuilder.Entity<UsageCounter>();
         usageCounter.ToTable("UsageCounters");

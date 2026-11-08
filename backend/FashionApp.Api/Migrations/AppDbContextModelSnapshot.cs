@@ -168,6 +168,29 @@ namespace FashionApp.Api.Migrations
                     b.ToTable("Outfits", (string)null);
                 });
 
+            modelBuilder.Entity("FashionApp.Api.Domain.OutfitItem", b =>
+                {
+                    b.Property<Guid>("OutfitId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("GarmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Layer")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("OutfitId", "GarmentId");
+
+                    b.HasIndex("GarmentId");
+
+                    b.HasIndex("OutfitId", "SortOrder");
+
+                    b.ToTable("OutfitItems", (string)null);
+                });
+
             modelBuilder.Entity("FashionApp.Api.Domain.UsageCounter", b =>
                 {
                     b.Property<DateOnly>("Date")
@@ -183,6 +206,30 @@ namespace FashionApp.Api.Migrations
                     b.HasKey("Date", "Kind");
 
                     b.ToTable("UsageCounters", (string)null);
+                });
+
+            modelBuilder.Entity("FashionApp.Api.Domain.OutfitItem", b =>
+                {
+                    b.HasOne("FashionApp.Api.Domain.Garment", "Garment")
+                        .WithMany()
+                        .HasForeignKey("GarmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FashionApp.Api.Domain.Outfit", "Outfit")
+                        .WithMany("Items")
+                        .HasForeignKey("OutfitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Garment");
+
+                    b.Navigation("Outfit");
+                });
+
+            modelBuilder.Entity("FashionApp.Api.Domain.Outfit", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
