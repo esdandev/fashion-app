@@ -1,5 +1,6 @@
 import type {
   ConfirmGarmentRequest,
+  CurrentGarmentValues,
   Garment,
   GarmentAnalysisProposal,
   GarmentCategory,
@@ -95,6 +96,26 @@ export function garmentFormValuesFromGarment(
 }
 
 /**
+ * Form values for a photo that is already saved. The analyze response carries
+ * these columns so re-uploading never reverts edits made in a previous save.
+ */
+export function garmentFormValuesFromCurrentGarment(
+  current: CurrentGarmentValues,
+): GarmentFormValues {
+  return {
+    name: current.name,
+    category: parseCategory(current.category) ?? 'top',
+    colorName: current.colorName,
+    colorHex: current.colorHex,
+    seasons: current.seasons
+      .map(parseSeason)
+      .filter((season): season is Season => season !== null),
+    formality: clampFormality(current.formality),
+    styleTags: current.styleTags.join(', '),
+  }
+}
+
+/**
  * Applies a reanalysis proposal over the current form. Values the model did not
  * return fall back to what the user already had, so a partial proposal never
  * blanks the confirmation form.
@@ -121,11 +142,13 @@ export function garmentFormValuesFromProposal(
 }
 
 export function toPatchRequest(values: GarmentFormValues): PatchGarmentRequest {
+  const colorHex = values.colorHex.trim()
+
   return {
     name: values.name.trim(),
     category: values.category,
     colorName: values.colorName.trim(),
-    colorHex: values.colorHex.trim(),
+    ...(colorHex ? { colorHex } : {}),
     seasons: values.seasons,
     formality: clampFormality(values.formality),
     styleTags: splitTags(values.styleTags),
@@ -148,13 +171,15 @@ export function toConfirmRequest(
     notes?: string | null
   } = {},
 ): ConfirmGarmentRequest {
+  const colorHex = values.colorHex.trim()
+
   return {
     contentHash,
     name: values.name.trim(),
     category: values.category,
     subcategory: options.subcategory ?? null,
     colorName: values.colorName.trim(),
-    colorHex: values.colorHex.trim(),
+    ...(colorHex ? { colorHex } : {}),
     pattern: options.pattern ?? null,
     seasons: values.seasons,
     formality: clampFormality(values.formality),

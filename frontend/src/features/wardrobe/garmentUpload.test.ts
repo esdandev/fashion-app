@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Garment, GarmentAnalysisProposal } from '../../lib/types'
 import {
   MAX_GARMENT_FILE_BYTES,
+  garmentFormValuesFromCurrentGarment,
   garmentFormValuesFromGarment,
   garmentFormValuesFromProposal,
   splitTags,
@@ -139,6 +140,60 @@ describe('garment form mapping', () => {
     })
 
     expect(splitTags('')).toEqual([])
+  })
+
+  it('omits an empty colorHex so it cannot erase a saved swatch', () => {
+    const patch = toPatchRequest({
+      name: 'Camisa',
+      category: 'top',
+      colorName: 'beige',
+      colorHex: '   ',
+      seasons: [],
+      formality: 3,
+      styleTags: '',
+    })
+    expect(patch).not.toHaveProperty('colorHex')
+
+    const confirm = toConfirmRequest(
+      {
+        name: 'Camisa',
+        category: 'top',
+        colorName: 'beige',
+        colorHex: '',
+        seasons: [],
+        formality: 3,
+        styleTags: '',
+      },
+      'a'.repeat(64),
+    )
+    expect(confirm).not.toHaveProperty('colorHex')
+  })
+
+  it('opens a re-uploaded photo with its current confirmed values', () => {
+    expect(
+      garmentFormValuesFromCurrentGarment({
+        id: '1',
+        name: 'Camisa editada',
+        category: 'outerwear',
+        subcategory: 'camisa',
+        colorName: 'verde',
+        colorHex: '#00aa55',
+        pattern: 'liso',
+        seasons: ['winter'],
+        formality: 4,
+        material: 'lino',
+        styleTags: ['formal'],
+        notes: null,
+      }),
+    ).toEqual({
+      name: 'Camisa editada',
+      category: 'outerwear',
+      colorName: 'verde',
+      colorHex: '#00aa55',
+      seasons: ['winter'],
+      formality: 4,
+      styleTags: 'formal',
+    })
   })
 
   it('builds a confirm request with the analyzed extras and confidence', () => {

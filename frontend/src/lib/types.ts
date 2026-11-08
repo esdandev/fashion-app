@@ -48,6 +48,22 @@ export interface GarmentAnalysisProposal {
   confidence: number
 }
 
+/** Current confirmed values for an already saved photo. */
+export interface CurrentGarmentValues {
+  id: string
+  name: string
+  category: string
+  subcategory: string | null
+  colorName: string
+  colorHex: string
+  pattern: string | null
+  seasons: string[]
+  formality: number
+  material: string | null
+  styleTags: string[]
+  notes: string | null
+}
+
 /** Result of `POST /api/garments/analyze`; no garment row exists yet. */
 export interface AnalyzeGarmentResponse {
   contentHash: string
@@ -55,6 +71,7 @@ export interface AnalyzeGarmentResponse {
   thumbUrl: string
   analysis: GarmentAnalysisProposal
   existingGarmentId: string | null
+  currentGarment: CurrentGarmentValues | null
 }
 
 /** Mirrors `ConfirmGarmentRequest` on the API. */
@@ -64,7 +81,7 @@ export interface ConfirmGarmentRequest {
   category: GarmentCategory
   subcategory?: string | null
   colorName: string
-  colorHex: string
+  colorHex?: string
   pattern?: string | null
   seasons: Season[]
   formality: number

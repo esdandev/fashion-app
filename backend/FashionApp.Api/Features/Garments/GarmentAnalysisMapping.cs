@@ -48,6 +48,20 @@ internal static class GarmentAnalysisMapping
     public static string CategoryToApi(GarmentCategory category) =>
         category.ToString().ToLowerInvariant();
 
+    public static CurrentGarmentValues ToCurrentGarment(Garment garment) => new(
+        garment.Id,
+        garment.Name,
+        CategoryToApi(garment.Category),
+        garment.Subcategory,
+        garment.ColorName,
+        garment.ColorHex,
+        garment.Pattern,
+        SplitList(garment.Seasons),
+        garment.Formality,
+        garment.Material,
+        ParseStyleTags(garment.StyleTagsJson),
+        garment.Notes);
+
     public static GarmentCategory ParseCategory(
         string? category,
         GarmentCategory fallback = GarmentCategory.Top)

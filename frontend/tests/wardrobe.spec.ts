@@ -74,6 +74,40 @@ test('guarda las correcciones del formulario de confirmación', async ({
   await expect(card.getByText('Top')).toBeVisible()
 })
 
+test('re-subir una foto confirmada conserva el color y el nombre editado', async ({
+  page,
+}) => {
+  await page.goto('/guardarropa')
+  await analyzeFixture(page, 'camisa-hex.jpg')
+
+  await page.getByLabel('Nombre').fill('Camisa con hex')
+  await page.getByLabel('Color', { exact: true }).fill('verde')
+  await page.getByLabel('Color (hex)').fill('#00aa55')
+  await page.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+
+  // The same photo is re-uploaded: the form must open with the current columns,
+  // not with the original analyze snapshot.
+  await analyzeFixture(page, 'camisa-hex.jpg')
+  await expect(page.getByLabel('Nombre')).toHaveValue('Camisa con hex')
+  await expect(page.getByLabel('Color (hex)')).toHaveValue('#00aa55')
+
+  await page.getByLabel('Nombre').fill('Camisa con hex editada')
+  await page.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+
+  await page.reload()
+  await waitForWardrobe(page)
+
+  const card = page
+    .getByRole('article')
+    .filter({ hasText: 'Camisa con hex editada' })
+  await expect(card).toBeVisible()
+  await expect(card.getByText('verde')).toBeVisible()
+  const swatch = card.locator('span[aria-hidden="true"]').first()
+  await expect(swatch).toHaveCSS('background-color', 'rgb(0, 170, 85)')
+})
+
 test('reintentar vuelve a llenar el formulario sin guardar', async ({
   page,
 }) => {

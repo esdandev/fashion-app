@@ -48,14 +48,16 @@ public static class GarmentAnalyzeEndpoint
 
         if (existing is not null)
         {
-            // Re-analyzing an already saved photo costs no quota: return its id
-            // and the analysis we stored, so the UI can offer reanalysis/edit.
+            // Re-analyzing an already saved photo costs no quota: return its id,
+            // the stored analysis and the current confirmed values, so the form
+            // opens with what is actually in the wardrobe.
             return Results.Ok(new AnalyzeGarmentResponse(
                 normalized.ContentHash,
                 MediaUrl(normalized.ContentHash),
                 ThumbUrl(normalized.ContentHash),
                 GarmentAnalysisMapping.FromGarment(existing),
-                existing.Id));
+                existing.Id,
+                GarmentAnalysisMapping.ToCurrentGarment(existing)));
         }
 
         if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
@@ -75,6 +77,7 @@ public static class GarmentAnalyzeEndpoint
             MediaUrl(normalized.ContentHash),
             ThumbUrl(normalized.ContentHash),
             proposal,
+            null,
             null));
     }
 

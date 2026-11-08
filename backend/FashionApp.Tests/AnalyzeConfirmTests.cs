@@ -99,6 +99,41 @@ public sealed class AnalyzeConfirmTests : IDisposable
         Assert.Equal(first.ContentHash, again.ContentHash);
         Assert.Equal(created!.Garment.Id, again.ExistingGarmentId);
         Assert.Equal("Camisa confirmada", again.Analysis.Name);
+        Assert.NotNull(again.CurrentGarment);
+        Assert.Equal("Camisa confirmada", again.CurrentGarment!.Name);
+        Assert.Equal("azul", again.CurrentGarment.ColorName);
+        Assert.Equal("#0000ff", again.CurrentGarment.ColorHex);
+    }
+
+    [Fact]
+    public async Task Reupload_after_edit_returns_current_values_and_keeps_the_hex()
+    {
+        var client = factory.CreateClient();
+        var first = await AnalyzeAsync(client, TestImages.CreateJpeg(800, 600));
+        var confirm = await client.PostAsJsonAsync(
+            "/api/garments/confirm",
+            ConfirmRequest(first.ContentHash, name: "Nombre original", colorName: "verde", colorHex: "#00aa55"));
+        var created = await confirm.Content.ReadFromJsonAsync<CreateGarmentResponse>();
+
+        // Re-upload opens the form from the current columns, not the original
+        // confirm snapshot.
+        var reupload = await AnalyzeAsync(client, TestImages.CreateJpeg(800, 600));
+        Assert.Equal("Nombre original", reupload.CurrentGarment!.Name);
+        Assert.Equal("#00aa55", reupload.CurrentGarment.ColorHex);
+
+        // Saving an edited name while the form still has the hex, plus a legacy
+        // client that sends an empty hex, must never erase the swatch.
+        var patch = await client.PatchAsJsonAsync(
+            $"/api/garments/{created!.Garment.Id}",
+            new { name = "Nombre editado", colorHex = "" });
+        Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
+        var patched = await patch.Content.ReadFromJsonAsync<GarmentDto>();
+        Assert.Equal("Nombre editado", patched!.Name);
+        Assert.Equal("#00aa55", patched.ColorHex);
+
+        var third = await AnalyzeAsync(client, TestImages.CreateJpeg(800, 600));
+        Assert.Equal("Nombre editado", third.CurrentGarment!.Name);
+        Assert.Equal("#00aa55", third.CurrentGarment.ColorHex);
     }
 
     [Fact]

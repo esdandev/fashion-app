@@ -5,6 +5,7 @@ import type { GarmentAnalysisProposal } from '../../lib/types'
 import { GarmentForm } from './GarmentForm'
 import {
   EMPTY_GARMENT_FORM_VALUES,
+  garmentFormValuesFromCurrentGarment,
   garmentFormValuesFromProposal,
   toConfirmRequest,
   toPatchRequest,
@@ -93,10 +94,12 @@ export function UploadGarmentDialog({
       setAnalysis(response.analysis)
       setExistingGarmentId(response.existingGarmentId)
       setValues(
-        garmentFormValuesFromProposal(
-          response.analysis,
-          EMPTY_GARMENT_FORM_VALUES,
-        ),
+        response.currentGarment
+          ? garmentFormValuesFromCurrentGarment(response.currentGarment)
+          : garmentFormValuesFromProposal(
+              response.analysis,
+              EMPTY_GARMENT_FORM_VALUES,
+            ),
       )
       setConfidence(response.analysis.confidence)
       setDeduplicated(response.existingGarmentId !== null)

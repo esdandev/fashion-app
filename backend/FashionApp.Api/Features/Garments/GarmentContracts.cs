@@ -28,6 +28,25 @@ public sealed record PatchGarmentRequest(
     string? Notes);
 
 /// <summary>
+/// Values currently stored for an already analyzed photo. The analyze response
+/// includes them so re-uploading a saved photo opens the form with the real
+/// values instead of the original AI snapshot.
+/// </summary>
+public sealed record CurrentGarmentValues(
+    Guid Id,
+    string Name,
+    string Category,
+    string? Subcategory,
+    string ColorName,
+    string ColorHex,
+    string? Pattern,
+    string[] Seasons,
+    int Formality,
+    string? Material,
+    string[] StyleTags,
+    string? Notes);
+
+/// <summary>
 /// Result of <c>POST /api/garments/analyze</c>. Nothing is persisted as a
 /// <c>Garment</c>: the user must confirm before a row is created.
 /// </summary>
@@ -36,7 +55,8 @@ public sealed record AnalyzeGarmentResponse(
     string ImageUrl,
     string ThumbUrl,
     GarmentAnalysis Analysis,
-    Guid? ExistingGarmentId);
+    Guid? ExistingGarmentId,
+    CurrentGarmentValues? CurrentGarment);
 
 /// <summary>
 /// Values confirmed by the user for an already analyzed photo. The image is

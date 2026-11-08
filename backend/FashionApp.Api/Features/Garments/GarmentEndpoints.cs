@@ -80,7 +80,9 @@ public static class GarmentEndpoints
                 garment.Category = category;
             if (request.ColorName is not null)
                 garment.ColorName = request.ColorName.Trim();
-            if (request.ColorHex is not null)
+            // An empty hex from an old form must not erase a swatch the user
+            // already saved; only a non-blank value updates the column.
+            if (!string.IsNullOrWhiteSpace(request.ColorHex))
                 garment.ColorHex = request.ColorHex.Trim();
             if (request.Formality is int formality)
                 garment.Formality = formality;
