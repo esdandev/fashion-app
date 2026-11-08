@@ -144,27 +144,43 @@ public sealed class OutfitSuggestionTests
     }
 
     [Fact]
-    public void Drops_a_draft_whose_base_stops_being_valid_after_normalization()
+    public void Drops_a_draft_with_more_than_five_ids_even_when_the_repeated_id_is_last()
+    {
+        var top = Top(2);
+        var bottom = Bottom(2);
+        var shoes = Shoes(2);
+        var outerwear = Outerwear(2);
+        var bag = Garment("bag", GarmentCategory.Bag, 2, false, "spring,summer");
+
+        var draft = new OutfitDraft(
+            "Seis piezas",
+            new[] { top.Id, bottom.Id, shoes.Id, outerwear.Id, bag.Id, top.Id },
+            null,
+            "La prenda repetida está en la sexta posición.");
+
+        // Truncating to five would hide the duplicate at position six and let an
+        // invalid proposal survive; the normalizer discards it whole.
+        Assert.Empty(OutfitDraftNormalizer.NormalizeAll(new[] { draft }));
+    }
+
+    [Fact]
+    public void Drops_a_draft_whose_base_is_invalid_after_normalization()
     {
         var dress = Dress(2);
         var top = Top(2);
         var bottom = Bottom(2);
         var shoes = Shoes(2);
         var bag = Garment("bag", GarmentCategory.Bag, 2, false, "spring,summer");
-        var accessory = Garment("accessory", GarmentCategory.Accessory, 2, false, "spring,summer");
-        var wardrobe = new[] { dress, top, bottom, shoes, bag, accessory };
+        var wardrobe = new[] { dress, top, bottom, shoes, bag };
 
         var draft = new OutfitDraft(
-            "Seis piezas",
-            new[] { dress.Id, top.Id, bottom.Id, shoes.Id, bag.Id, accessory.Id },
+            "Vestido con separados",
+            new[] { dress.Id, top.Id, bottom.Id, shoes.Id, bag.Id },
             null,
-            "Al recortar a cinco queda un vestido con top y bottom.");
+            "Un vestido no se combina con top y bottom.");
 
         var normalized = OutfitDraftNormalizer.NormalizeAll(new[] { draft });
-        Assert.Equal(OutfitDraftNormalizer.MaxGarmentIds, Assert.Single(normalized).GarmentIds.Length);
-
-        // A dress is an alternative to separates, so truncating the sixth id is
-        // not enough: the shared rules drop the proposal instead of repairing it.
+        Assert.Single(normalized);
         Assert.Empty(OutfitSuggestionValidator.KeepValid(normalized, wardrobe));
     }
 

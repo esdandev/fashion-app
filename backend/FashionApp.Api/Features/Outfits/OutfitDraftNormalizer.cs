@@ -20,7 +20,7 @@ public static class OutfitDraftNormalizer
 
     public const int MaxDrafts = 3;
 
-    public static OutfitDraft Normalize(OutfitDraft draft)
+    private static OutfitDraft Normalize(OutfitDraft draft)
     {
         var name = ClampRequired(draft.Name, MaxNameLength);
         if (name.Length == 0)
@@ -28,21 +28,24 @@ public static class OutfitDraftNormalizer
 
         var occasion = ClampOptional(draft.Occasion, MaxOccasionLength);
         var rationale = ClampRequired(draft.Rationale, MaxRationaleLength);
-        var garmentIds = (draft.GarmentIds ?? [])
-            .Take(MaxGarmentIds)
-            .ToArray();
+        var garmentIds = draft.GarmentIds ?? [];
 
         return new OutfitDraft(name, garmentIds, occasion, rationale);
     }
 
     /// <summary>
-    /// Trims every draft and caps its ids before validation. A draft whose base
-    /// pieces no longer compose a valid outfit after that cap is dropped by
+    /// Normalizes every draft and drops any proposal with more than
+    /// <see cref="MaxGarmentIds"/> ids. The ids are never truncated: a repeated
+    /// id beyond the cap would otherwise disappear and the invalid proposal
+    /// would survive. Drafts that remain are validated afterwards with
     /// <see cref="OutfitSuggestionValidator"/>.
     /// </summary>
     public static IReadOnlyList<OutfitDraft> NormalizeAll(
         IReadOnlyList<OutfitDraft> drafts) =>
-        drafts.Select(Normalize).ToList();
+        drafts
+            .Where(draft => (draft.GarmentIds?.Length ?? 0) <= MaxGarmentIds)
+            .Select(Normalize)
+            .ToList();
 
     private static string ClampRequired(string? value, int maxLength)
     {

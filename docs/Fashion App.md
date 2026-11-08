@@ -440,4 +440,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | Diseño aprobado. Plan de implementación de la Fase 0–1 escrito en [[Fashion App - Plan Fase 0-1]]. |
 | 2026-11-07 | ImageSharp reemplazado por Magick.NET (Apache 2.0) porque la versión 4 bloquea el publish Release sin licencia. |
 | 2026-11-07 | Fase 0–1 implementada y verificada: 91 tests backend, 19 frontend, 8 E2E, build y lint limpios. Flujo final analyze → confirm, data root unificado y demo aislada. |
-| 2026-11-08 | Fase 2 implementada y verificada: outfits con ítems, reglas de composición, CRUD manual, sugerencias IA con validación, fallback por reglas, cuota por tipo y caché; panel de sugerencias, collage y edición en el front. 190 tests backend, 46 frontend y 10 E2E en verde. |
+| 2026-11-08 | Fase 2 implementada y verificada: outfits con ítems, reglas de composición, CRUD manual, sugerencias IA con validación, fallback por reglas, cuota por tipo y caché; panel de sugerencias, collage y edición en el front. 192 tests backend, 46 frontend y 10 E2E en verde. |

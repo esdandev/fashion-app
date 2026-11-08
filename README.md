@@ -144,8 +144,8 @@ empezar con `VITE_`.
 | `AI__MODEL` | `gemini-2.0-flash` | Modelo usado por el analizador real. |
 | `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA permitidos por día (calendario UTC). |
 | `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits permitidas por día (calendario UTC). Comparte el contador atómico en SQLite. |
-| `RATE_LIMITING__ENABLED` | `true` | Rate limit por IP para `/api/garments` y `/api/outfits/suggest`. En `Testing` queda desactivado salvo `RATE_LIMITING__ENABLED=true` explícito. |
-| `RATE_LIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP en esas rutas; el exceso responde `429` (`ProblemDetails` en español) con `Retry-After`. |
+| `RATELIMITING__ENABLED` | `true` | Rate limit por IP para `/api/garments` y `/api/outfits/suggest`. En `Testing` queda desactivado salvo `RATELIMITING__ENABLED=true` explícito. |
+| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP en esas rutas; el exceso responde `429` (`ProblemDetails` en español) con `Retry-After`. |
 | `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. Si se define, se usa tal cual. |
 | `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes para CI/tests. |
 | `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS. |
@@ -285,9 +285,10 @@ están implementados (Fase 3).
   inválidas, se reintenta una vez y luego se usa el generador por reglas. Los
   tests usan `Ai:Provider=fake` para que el E2E sea determinista.
 - **Límites de guardado en las sugerencias.** El servicio recorta los textos
-  (`name` 120, `occasion` 60, `rationale` 600), limita cada propuesta a 5
-  prendas y la respuesta a 3 borradores. Un borrador que deja de ser válido tras
-  la normalización se descarta, así que todo lo que se muestra o se cachea se
+  (`name` 120, `occasion` 60, `rationale` 600), descarta las propuestas con más
+  de 5 prendas (nunca las trunca, para no ocultar ids repetidos) y limita la
+  respuesta a 3 borradores. Un borrador que deja de ser válido tras la
+  normalización se descarta, así que todo lo que se muestra o se cachea se
   puede guardar con `POST /api/outfits`.
 - **Rate limit por IP.** `/api/garments` y `/api/outfits/suggest` comparten una
   ventana fija de 60 solicitudes por minuto (configurable); el exceso devuelve

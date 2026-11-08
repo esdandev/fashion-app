@@ -251,8 +251,7 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
             TestData.NewGarment("Pantalón", GarmentCategory.Bottom),
             TestData.NewGarment("Zapatillas", GarmentCategory.Shoes),
             TestData.NewGarment("Campera", GarmentCategory.Outerwear),
-            TestData.NewGarment("Cartera", GarmentCategory.Bag),
-            TestData.NewGarment("Bufanda", GarmentCategory.Accessory));
+            TestData.NewGarment("Cartera", GarmentCategory.Bag));
 
         var client = overlong.CreateClient();
         var response = await PostSuggestAsync(client, "trabajo");
@@ -540,7 +539,6 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
             var shoes = context.Wardrobe.Single(g => g.Category == "shoes");
             var outerwear = context.Wardrobe.Single(g => g.Category == "outerwear");
             var bag = context.Wardrobe.Single(g => g.Category == "bag");
-            var accessory = context.Wardrobe.Single(g => g.Category == "accessory");
 
             var drafts = new List<OutfitDraft>
             {
@@ -551,8 +549,7 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
                         bottoms[0].Id,
                         shoes.Id,
                         outerwear.Id,
-                        bag.Id,
-                        accessory.Id
+                        bag.Id
                     ],
                     new string('O', 200),
                     new string('R', 1000))
