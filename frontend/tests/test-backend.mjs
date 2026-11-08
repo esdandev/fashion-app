@@ -44,6 +44,13 @@ const child = spawn(dotnet, [dll, '--urls', 'http://localhost:5210'], {
     ConnectionStrings__Default: `Data Source=${dbPath}`,
     Storage__Root: uploadsDir,
     Ai__Provider: 'fake',
+    // The digest E2E drives generation through the admin refresh endpoint, so
+    // the startup job stays off. The fake feed avoids any network access and
+    // the fixed secret is the one the spec sends.
+    Digest__Provider: 'fake',
+    Digest__GenerateOnStartup: 'false',
+    Digest__AdminSecret: 'test-secret',
+    Digest__Feeds: '[]',
     Demo__Enabled: 'false',
     App__Token: '',
   },
