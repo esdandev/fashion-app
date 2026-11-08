@@ -154,7 +154,7 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task Suggest_drops_invalid_ids_from_ai_suggestions()
+    public async Task Suggest_keeps_the_valid_draft_and_drops_the_invented_one()
     {
         using var mixed = factory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -172,6 +172,33 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
         Assert.Equal("Válido", only.Name);
         var wardrobeIds = (await ActiveGarmentsAsync(factory)).Select(g => g.Id).ToHashSet();
         Assert.All(only.GarmentIds, id => Assert.Contains(id, wardrobeIds));
+        Assert.Equal(1, await SuggestionCountAsync(factory));
+    }
+
+    [Fact]
+    public async Task Suggest_retries_once_and_returns_the_second_call_proposal()
+    {
+        using var flaky = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IOutfitSuggester>();
+                services.AddSingleton<IOutfitSuggester, FlakySuggester>();
+            }));
+        await SeedWardrobe(factory);
+
+        var response = await PostSuggestAsync(flaky.CreateClient(), "trabajo");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<SuggestOutfitsResponse>();
+        var only = Assert.Single(body!.Outfits);
+        // The rule-based fallback names its drafts "Look de dos piezas"; seeing
+        // the retry proposal proves the second call was used, not the fallback.
+        Assert.Equal(FlakySuggester.RetryName, only.Name);
+        Assert.Equal("propuesta del reintento", only.Rationale);
+
+        var suggester = Assert.IsType<FlakySuggester>(
+            flaky.Services.GetRequiredService<IOutfitSuggester>());
+        Assert.Equal(2, suggester.Calls);
         Assert.Equal(1, await SuggestionCountAsync(factory));
     }
 
@@ -201,6 +228,9 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
             Assert.True(OutfitRules.Validate(resolved).IsValid);
         }
 
+        var suggester = Assert.IsType<ThrowingSuggester>(
+            failing.Services.GetRequiredService<IOutfitSuggester>());
+        Assert.Equal(2, suggester.Calls);
         Assert.Equal(1, await SuggestionCountAsync(factory));
     }
 
@@ -367,6 +397,33 @@ public sealed class OutfitSuggestEndpointTests : IDisposable
         {
             Calls++;
             throw new HttpRequestException("El proveedor de IA no está disponible.");
+        }
+    }
+
+    /// <summary>
+    /// Returns nothing on the first call and a valid proposal on the second, so
+    /// the test can distinguish the service retry from the rule-based fallback.
+    /// </summary>
+    private sealed class FlakySuggester : IOutfitSuggester
+    {
+        public const string RetryName = "Propuesta del reintento";
+
+        private readonly RuleBasedOutfitSuggester inner = new();
+
+        public int Calls { get; private set; }
+
+        public async Task<IReadOnlyList<OutfitDraft>> SuggestAsync(
+            OutfitSuggestionContext context,
+            CancellationToken ct)
+        {
+            Calls++;
+            if (Calls == 1)
+                return [];
+
+            var valid = await inner.SuggestAsync(context, ct);
+            return valid.Count == 0
+                ? []
+                : [valid[0] with { Name = RetryName, Rationale = "propuesta del reintento" }];
         }
     }
 }
