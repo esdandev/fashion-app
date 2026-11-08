@@ -175,6 +175,29 @@ export interface SuggestOutfitsResponse {
   outfits: OutfitDraft[]
 }
 
+/** One news note with its own Spanish summary and, when allowed, matching garments. */
+export interface DigestItemDto {
+  id: string
+  title: string
+  url: string
+  source: string
+  summary: string
+  styleTags: string[]
+  imageUrl: string | null
+  publishedAt: string | null
+  /** Empty for anonymous requests on a token-protected instance. */
+  relatedGarments: Garment[]
+}
+
+/** Mirrors `DigestDto`, the read model of `GET /api/digest/today`. */
+export interface DigestDto {
+  /** `DateOnly` serialized as YYYY-MM-DD. */
+  date: string
+  summary: string
+  generatedAt: string
+  items: DigestItemDto[]
+}
+
 /** RFC 7807 payload the API returns for validation and auth errors. */
 export interface ProblemDetails {
   type?: string

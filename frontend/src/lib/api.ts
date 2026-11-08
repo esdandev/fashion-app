@@ -4,6 +4,7 @@ import type {
   ConfirmGarmentRequest,
   CreateGarmentResponse,
   CreateOutfitRequest,
+  DigestDto,
   Garment,
   GarmentAnalysisProposal,
   GarmentListResponse,
@@ -203,6 +204,20 @@ export const api = {
     })
 
     return parseResponse<AppConfig>(response)
+  },
+
+  /**
+   * The public daily digest. The token is optional: it only unlocks the
+   * `relatedGarments` of each item on a token-protected instance. Answers 404
+   * when no digest has been generated yet.
+   */
+  async getDigest(signal?: AbortSignal): Promise<DigestDto> {
+    const response = await fetch(`${API_BASE_URL}/api/digest/today`, {
+      headers: authHeaders(),
+      signal,
+    })
+
+    return parseResponse<DigestDto>(response)
   },
 
   async reanalyze(id: string): Promise<GarmentAnalysisProposal> {
