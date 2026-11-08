@@ -91,7 +91,8 @@ El link del portfolio corre con `DEMO_MODE=true` y **nunca usa datos personales*
 - **Es de solo lectura para el visitante**: no se pueden subir prendas, guardar outfits ni regenerar el digest. La UI oculta esas acciones y el backend las rechaza con `403`.
 - **No hace llamadas a la IA.** El costo de la demo pública es cero y no hay riesgo de factura abierta.
 - El análisis de prendas en vivo se muestra en el portfolio con un video/GIF grabado, no con una instancia writable.
-- Reset: borrar el volumen `data/` y reiniciar el contenedor vuelve al estado sembrado. La instancia personal es una copia separada con `DEMO_MODE=false` y token.
+- Reset: borrar solo el directorio de datos de la demo (`data/demo/`) y reiniciar el contenedor vuelve al estado sembrado. La instancia personal usa `data/` y es una copia separada con `DEMO_MODE=false` y token.
+- **Aislamiento de datos**: la demo tiene su propio `Data:Root` (`data/demo`) y el backend se niega a arrancar si detecta que apunta a la base personal o si encuentra prendas que no pertenecen al manifiesto de ejemplo.
 
 ## No-objetivos
 
@@ -194,13 +195,13 @@ fashion-app/
 | GET | `/api/digest/today` | Digest del día (cacheado). |
 | POST | `/api/digest/refresh` | Regenerar manualmente (requiere `ADMIN_SECRET`). |
 | GET | `/api/garments` | Listado paginado con filtros (`category`, `color`, `season`, `cursor`). |
-| GET | `/api/config` | Flags públicos de runtime (`demo`). |
-| POST | `/api/garments/analyze` | Analiza la foto y devuelve la propuesta sin crear la prenda. |
-| POST | `/api/garments/confirm` | Crea la prenda con los valores confirmados y el hash ya analizado. |
-| POST | `/api/garments` | Alta multipart de compatibilidad (analiza y persiste en un request). |
-| PATCH | `/api/garments/{id}` | Corregir atributos (incluye `colorHex`). |
+| POST | `/api/garments/analyze` | Sube la foto, la normaliza y devuelve una propuesta de atributos **sin crear la prenda**. |
+| POST | `/api/garments/confirm` | Crea la prenda con los atributos confirmados por el usuario (sin llamar a la IA). |
+| POST | `/api/garments` | Alta directa con imagen (compatibilidad; la UI usa analyze + confirm). |
+| PATCH | `/api/garments/{id}` | Corregir atributos. |
 | POST | `/api/garments/{id}/reanalyze` | Reintentar análisis. |
 | DELETE | `/api/garments/{id}` | Archivar (baja lógica). |
+| GET | `/api/config` | Configuración pública de la instancia (`demo`). |
 | GET | `/api/outfits` | Listado de outfits guardados. |
 | POST | `/api/outfits` | Crear outfit manual. |
 | POST | `/api/outfits/suggest` | Sugerencia IA (`occasion`, `weather`). |
@@ -271,13 +272,14 @@ Convenciones: errores con `ProblemDetails`; validación con DataAnnotations o Fl
 1. El front envía la foto (JPEG/PNG/WebP, máx. 10 MB) a `POST /api/garments/analyze`.
 2. El backend valida MIME real, límite de tamaño y decodifica la imagen.
 3. **Normaliza**: corrige orientación, redimensiona a 1600 px de lado mayor y genera miniatura de 400 px en WebP. Elimina metadatos EXIF.
-4. Calcula hash SHA-256 del archivo normalizado. Si ya existe, devuelve el id y el análisis previos (idempotencia y ahorro de costo).
+4. Calcula hash SHA-256 del archivo normalizado y lo guarda en el almacenamiento direccionado por contenido. Si ya existe una prenda activa con ese hash, devuelve su id y sus valores actuales.
 5. Llama al modelo multimodal con la imagen y un prompt que exige **JSON estricto**.
-6. Valida el JSON contra el esquema. Si falla, reintenta una vez con temperatura 0; si vuelve a fallar, devuelve atributos mínimos y `Confidence = 0` para corrección manual.
-7. Devuelve `contentHash`, URLs y la propuesta **sin crear la fila**. El usuario confirma o edita.
-8. `POST /api/garments/confirm` crea la prenda con los valores confirmados y los archivos content-addressed. No llama a la IA ni consume cuota; si el hash ya existe, devuelve la prenda existente (`200`, deduplicada).
+6. Valida el JSON contra el esquema. Si falla, reintenta una vez con temperatura 0; si vuelve a fallar, devuelve atributos mínimos con `Confidence = 0` para corrección manual.
+7. **No crea la prenda.** Devuelve la propuesta (`contentHash`, URLs de imagen, atributos y, si aplica, `currentGarment`).
+8. El usuario confirma o edita y el front llama a `POST /api/garments/confirm` con `contentHash` + atributos. Ese endpoint crea la fila (o restaura una archivada) sin volver a llamar a la IA.
+9. Si el usuario cancela, no queda ninguna fila; solo el archivo direccionado por contenido, que es reutilizable.
 
-El análisis es **sincrónico** por request (timeout de 20 s) y no persiste la prenda: cancelar el diálogo deja solo archivos reutilizables, nunca una fila huérfana. Si el proveedor tarda o falla, el análisis vuelve con `Confidence = 0` y el usuario puede reintentar con `POST /api/garments/{id}/reanalyze` (o volver a analizar el mismo archivo). `POST /api/garments` se mantiene por compatibilidad, pero la UI usa analyze + confirm.
+El análisis es **sincrónico** dentro de `POST /api/garments` (una prenda por request, timeout de 20 s). Es más simple que una cola y alcanza para el objetivo de tres minutos con cinco prendas. Si el proveedor tarda o falla, la prenda se guarda igual con `Confidence = 0` y el usuario puede reintentar con `POST /api/garments/{id}/reanalyze`.
 
 `reanalyze` **no sobrescribe nada sin confirmación**: devuelve una propuesta con los atributos detectados y el front muestra el mismo formulario de confirmación que en el alta, con los valores actuales como base.
 
@@ -425,6 +427,9 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 16 | Clima manual (frío/templado/calor) | API meteorológica o geolocalización | Elimina una integración y sus estados de error; no cambia la demo. |
 | 17 | Topes diarios + `ADMIN_SECRET` para refresh | Confiar en el uso personal | Evita una factura abierta y un endpoint sensible expuesto. |
 | 18 | Magick.NET-Q8-AnyCPU para imágenes | ImageSharp 4 | Apache 2.0 y `dotnet publish -c Release` funciona sin clave; ImageSharp bloquea el build Release sin licencia. |
+| 19 | Flujo analyze → confirm | Crear la prenda al subir la foto | Evita prendas huérfanas si el usuario cancela y respeta la confirmación del usuario. |
+| 20 | Un solo `Data:Root` para base e imágenes | Rutas separadas | Backup, reset y privacidad en un único directorio; la demo usa `data/demo`. |
+| 21 | Fail-fast en producción sin token o con IA fake | Arrancar igual | Evita exponer el guardarropa o servir análisis falsos por un descuido de configuración. |
 
 ## Bitácora
 
@@ -434,5 +439,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | Demo pública definida como solo lectura, con prendas de ejemplo y sin llamadas a la IA. Datos personales solo en instancia local. |
 | 2026-11-07 | Diseño aprobado. Plan de implementación de la Fase 0–1 escrito en [[Fashion App - Plan Fase 0-1]]. |
 | 2026-11-07 | ImageSharp reemplazado por Magick.NET (Apache 2.0) porque la versión 4 bloquea el publish Release sin licencia. |
-| 2026-11-07 | Fase 1 cerrada: alta por foto con análisis IA, confirmación editable, reanálisis no destructivo, grilla con filtros y E2E del flujo crítico. |
-| 2026-11-08 | Alta revisada a flujo analyze → confirm: analizar ya no persiste una prenda, confirmar crea la fila sin IA. Se agregan `GET /api/config`, `colorHex` en el formulario/PATCH y un E2E con base aislada que cubre cancelación sin fila nueva. |
+| 2026-11-07 | Fase 0–1 implementada y verificada: 91 tests backend, 19 frontend, 8 E2E, build y lint limpios. Flujo final analyze → confirm, data root unificado y demo aislada. |

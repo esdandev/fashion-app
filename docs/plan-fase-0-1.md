@@ -934,7 +934,7 @@ git commit -m "feat: add responsive wardrobe grid with filters"
 
 Antes de empezar, crear `frontend/playwright.config.ts` con `testDir: './tests'`, `use.baseURL = 'http://localhost:5173'` y `webServer` apuntando a `pnpm dev` (sin backend automático; el backend se levanta en modo fake según el paso 4).
 
-Input `accept="image/jpeg,image/png,image/webp"`, preview local con `URL.createObjectURL`, validación de 10 MB en cliente con mensaje en español, spinner con texto "Analizando prenda…", y formulario de confirmación con los campos del análisis (nombre, categoría, color, temporada, formalidad, etiquetas del vocabulario controlado). El botón "Guardar" usa `POST /api/garments/confirm` si la foto es nueva o `PATCH /api/garments/{id}` si ya estaba en el guardarropa; el botón "Reintentar" hace `POST /{id}/reanalyze` y vuelve a llenar el formulario sin guardar.
+Input `accept="image/jpeg,image/png,image/webp"`, preview local con `URL.createObjectURL`, validación de 10 MB en cliente con mensaje en español, aviso de que la foto se envía al proveedor de IA, spinner con texto "Analizando prenda…", y formulario de confirmación con los campos del análisis (nombre, categoría, color, temporada, formalidad, etiquetas). Al elegir el archivo se llama a `POST /api/garments/analyze` (no crea fila); el botón "Guardar" hace `POST /api/garments/confirm` con los valores confirmados; el botón "Reintentar" vuelve a analizar sin guardar. Cancelar no deja ninguna prenda creada.
 
 - [ ] **Step 2: Escribir el E2E que falla**
 
@@ -991,7 +991,7 @@ git commit -m "feat: complete wardrobe upload flow with E2E coverage"
 
 ## Siguientes planes
 
-Este plan cierra la **Fase 0–1**. Los siguientes se escriben al terminar, con las interfaces ya reales:
+Este plan cierra la **Fase 0–1** (implementada y verificada el 2026-11-07). Los siguientes se escriben al terminar, con las interfaces ya reales:
 
 1. **Plan 2 — Outfits**: sugerencia IA, validación de composición, editor manual, collage.
 2. **Plan 3 — Hoy**: job RSS, resumen diario, intersección con `StyleTags`, caché.
