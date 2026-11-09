@@ -126,6 +126,12 @@ var app = builder.Build();
 var dataPaths = app.Services.GetRequiredService<DataPaths>();
 var demoEnabled = app.Configuration.GetValue("Demo:Enabled", false);
 
+app.Logger.LogInformation(
+    "IA configurada: provider={Provider}, model={Model}, keyConfigured={KeyConfigured}",
+    aiOptions.Provider,
+    aiOptions.Model,
+    !string.IsNullOrWhiteSpace(aiOptions.ApiKey));
+
 StartupChecks.ValidateSecurity(
     app.Environment.EnvironmentName,
     app.Configuration["App:Token"],
@@ -154,6 +160,14 @@ app.MapGet("/api/config", (IConfiguration configuration) => Results.Ok(new
 {
     demo = configuration.GetValue("Demo:Enabled", false)
 }));
+
+app.MapGet("/api/ai/status", (IConfiguration configuration) => Results.Ok(new
+{
+    provider = configuration["Ai:Provider"] ?? "fake",
+    model = configuration["Ai:Model"] ?? "gemini-3.8-flash",
+    keyConfigured = !string.IsNullOrWhiteSpace(configuration["Ai:ApiKey"]),
+    digestProvider = configuration["Digest:Provider"] ?? "rss"
+})).RequireToken();
 
 app.MapGarmentEndpoints();
 app.MapGarmentUploadEndpoint();

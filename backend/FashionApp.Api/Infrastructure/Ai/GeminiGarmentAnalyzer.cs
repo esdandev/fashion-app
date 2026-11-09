@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace FashionApp.Api.Infrastructure.Ai;
@@ -28,12 +30,23 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
 
     private readonly HttpClient _httpClient;
     private readonly AiOptions _options;
+    private readonly ILogger<GeminiGarmentAnalyzer> _logger;
     private readonly string _prompt = PromptText.Value;
 
     public GeminiGarmentAnalyzer(HttpClient httpClient, IOptions<AiOptions> options)
+        : this(httpClient, options, NullLogger<GeminiGarmentAnalyzer>.Instance)
+    {
+    }
+
+    [ActivatorUtilitiesConstructor]
+    public GeminiGarmentAnalyzer(
+        HttpClient httpClient,
+        IOptions<AiOptions> options,
+        ILogger<GeminiGarmentAnalyzer> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _logger = logger;
         _httpClient.Timeout = RequestTimeout;
     }
 
@@ -86,7 +99,19 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
                 .PostAsync(url, content, ct)
                 .ConfigureAwait(false);
 
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content
+                    .ReadAsStringAsync(ct)
+                    .ConfigureAwait(false);
+                _logger.LogWarning(
+                    "Gemini respondió {Status} para el modelo {Model}: {Body}. " +
+                    "Revisá AI__APIKEY y AI__MODEL.",
+                    (int)response.StatusCode,
+                    _options.Model,
+                    Truncate(errorBody));
+                return GarmentAnalysis.Empty();
+            }
 
             var body = await response.Content
                 .ReadAsStringAsync(ct)
@@ -94,11 +119,21 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
 
             var analysisText = ExtractAnswerText(body);
             if (string.IsNullOrWhiteSpace(analysisText))
+            {
+                _logger.LogWarning(
+                    "Gemini devolvió una respuesta sin texto para el modelo {Model}.",
+                    _options.Model);
                 return GarmentAnalysis.Empty();
+            }
 
             var parsed = ParseAnalysis(analysisText);
             if (parsed is null || !GarmentAnalysisValidator.TryNormalize(parsed, out var normalized))
+            {
+                _logger.LogWarning(
+                    "No se pudo validar la respuesta de Gemini: {Body}",
+                    Truncate(analysisText));
                 return GarmentAnalysis.Empty();
+            }
 
             return normalized;
         }
@@ -113,11 +148,18 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
             // A cancelled request must not be turned into a saved garment.
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger.LogWarning(
+                exception,
+                "Falló la llamada a Gemini con el modelo {Model}.",
+                _options.Model);
             return GarmentAnalysis.Empty();
         }
     }
+
+    private static string Truncate(string value) =>
+        value.Length <= 1000 ? value : value[..1000];
 
     private static string LoadPrompt()
     {

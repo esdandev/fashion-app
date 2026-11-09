@@ -371,7 +371,7 @@ public sealed class DigestIngestTests
         Assert.Contains("Un resumen de la nota.", prompt);
 
         Assert.NotNull(handler.RequestUri);
-        Assert.Contains("gemini-2.0-flash", handler.RequestUri!.ToString());
+        Assert.Contains("gemini-3.8-flash", handler.RequestUri!.ToString());
         Assert.Contains("key=test", handler.RequestUri.ToString());
     }
 

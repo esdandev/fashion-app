@@ -138,7 +138,33 @@ Ai__Provider=fake dotnet run --project backend/FashionApp.Api
 - Datos: `data/fashion.db` y `data/uploads/` (fuera de git). Cambiá la raíz con
   `DATA__ROOT`.
 - `Ai__Provider=fake` devuelve una camisa de lino determinística, sin red ni
-  costo. Para Gemini: `AI__PROVIDER=gemini` y `AI__APIKEY`.
+  costo. Para usar Gemini, definí las variables **en la misma terminal** y
+  antes de arrancar:
+
+```powershell
+$env:AI__PROVIDER='gemini'
+$env:AI__APIKEY='tu-clave'
+$env:AI__MODEL='gemini-3.8-flash'   # opcional; ya es el default
+dotnet run --project backend/FashionApp.Api
+```
+
+  La clave sola no activa Gemini: si `AI__PROVIDER` queda en `fake`, la app
+  sigue respondiendo datos de ejemplo. ASP.NET no lee archivos `.env`; usá
+  variables de entorno o `dotnet user-secrets`.
+- Verificá la configuración activa con `GET /api/ai/status` (si definiste
+  `APP__TOKEN`, mandá `X-App-Token`). Debe responder `provider: "gemini"` y
+  `keyConfigured: true`.
+- Si la IA devuelve confianza 0 o el log muestra un error de Gemini, probá la
+  clave y el modelo fuera de la app:
+
+```powershell
+.\scripts\check-gemini.ps1
+.\scripts\check-gemini.ps1 -ListModels
+```
+
+  El modelo `gemini-2.0-flash` está retirado desde junio de 2026. El default es
+  `gemini-3.8-flash`; si tu cuenta no lo tiene, elegí otro de `-ListModels` y
+  definí `AI__MODEL`.
 - En `Development`, `Digest__Provider=fake` devuelve ocho notas de ejemplo;
   para feeds reales usá `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`.
 
@@ -239,7 +265,7 @@ Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
 | `DEMO__DATAROOT` | `<DATA__ROOT>/demo` | Raíz de datos de la demo. No puede coincidir con la base ni los uploads personales. |
 | `AI__PROVIDER` | `fake` | `fake` o `gemini`. |
 | `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER=gemini`. |
-| `AI__MODEL` | `gemini-2.0-flash` | Modelo del analizador real. |
+| `AI__MODEL` | `gemini-3.8-flash` | Modelo del analizador real. `gemini-2.0-flash` está retirado. |
 | `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA por día (calendario UTC). |
 | `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits por día. Comparte el contador atómico en SQLite. |
 | `DIGEST__PROVIDER` | `rss` (`fake` en `Development`) | `rss` lee feeds reales; `fake` devuelve notas determinísticas sin red. |

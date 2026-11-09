@@ -8,5 +8,5 @@ public sealed class AiOptions
 {
     public string Provider { get; set; } = "fake";
     public string ApiKey { get; set; } = "";
-    public string Model { get; set; } = "gemini-2.0-flash";
+    public string Model { get; set; } = "gemini-3.8-flash";
 }
