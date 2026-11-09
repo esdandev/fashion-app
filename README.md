@@ -189,6 +189,9 @@ dotnet run --project backend/FashionApp.Api
   desde otros clientes; usá un modelo pago o una suscripción Go. `AI__BASEURL`
   permite apuntar a otro gateway compatible. Verificá con
   `.\scripts\check-opencode.ps1` o `.\scripts\check-opencode.ps1 -ListModels`.
+  Si devuelve `Account.InsufficientFunds`, la clave es válida pero la cuenta no
+  tiene saldo/Go para ese modelo: cargá crédito en OpenCode Console o cambiá a
+  `AI__PROVIDER=gemini` con una clave de Google AI Studio.
 - En `Development`, `Digest__Provider=fake` devuelve ocho notas de ejemplo;
   para feeds reales usá `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`.
 

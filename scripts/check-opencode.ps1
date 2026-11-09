@@ -54,6 +54,7 @@ catch {
     Write-Host ''
     Write-Host 'Recordá: la clave es una API key personal de OpenCode Console (no la sesión del agente).' -ForegroundColor Yellow
     Write-Host 'Los modelos free solo funcionan dentro de OpenCode; usá un modelo pago o Go.' -ForegroundColor Yellow
+    Write-Host 'Si el error es Account.InsufficientFunds, cargá saldo/Go en Console o usá AI__PROVIDER=gemini.' -ForegroundColor Yellow
     Write-Host "  .\scripts\check-opencode.ps1 -ListModels" -ForegroundColor Yellow
     exit 1
 }
