@@ -15,7 +15,8 @@ las imágenes viven en el volumen persistente `fashion_data` montado en `/data`.
 `fly.toml` (raíz del repo) levanta la **demo pública**:
 
 - región `gru`, una Machine de 512 MB (shared CPU);
-- HTTPS forzado y sin auto-stop (`min_machines_running = 1`);
+- HTTPS forzado, sin auto-stop (`auto_stop_machines = false`) y una Machine
+  siempre encendida (`min_machines_running = 1`);
 - `DATA__ROOT=/data` y `DEMO__DATAROOT=/data/demo`;
 - IA y feeds fake, sin generación de digest al arrancar;
 - solo lectura: las escrituras de la demo responden `403`.
@@ -89,7 +90,10 @@ fly volumes create fashion_data --region gru --size 1
 ```
 
 - `--size 1` son 1 GB; alcanza de sobra para la demo (SQLite + WebP).
-- Es un volumen por Machine. El `fly.toml` mantiene una sola Machine en `gru`.
+- Es un volumen por Machine. El `fly.toml` define el tamaño de la VM, no la
+  cantidad de Machines: un deploy nuevo crea una Machine en `gru` y el volumen
+  se monta en ella. Si escalás a más Machines, cada una necesita un volumen en su
+  región.
 - No borres ni recrees el volumen para "resetear" la demo: eso borra también
   datos personales si alguna vez usaste la misma app para la instancia personal.
   El reset correcto está en [Reset de la demo](#7-reset-de-la-demo).
@@ -127,8 +131,9 @@ un volumen ausente o una ruta de datos inválida).
 fly open
 ```
 
-Abre `https://fashion-app-demo.fly.dev` en el navegador. La primera carga siembra
-la demo (14 prendas y un digest de 8 notas) dentro de `/data/demo`.
+Abre `https://fashion-app-demo.fly.dev` en el navegador. Al arrancar, la app
+siembra la demo (14 prendas y un digest de 8 notas) en `/data/demo` antes de
+empezar a escuchar, así que la primera visita ya la encuentra lista.
 
 ## 6. Verificación
 
@@ -177,8 +182,8 @@ curl.exe -sS "$APP_URL/api/config"
 
 ## 7. Reset de la demo
 
-La demo se siembra sola cuando sus tablas están vacías. Para volver al estado
-inicial hay que borrar **solo** `/data/demo` y reiniciar el proceso:
+La demo se siembra sola al arrancar, cuando sus tablas están vacías. Para volver
+al estado inicial hay que borrar **solo** `/data/demo` y reiniciar el proceso:
 
 ```bash
 fly ssh console -a fashion-app-demo -C "rm -rf /data/demo"
@@ -187,6 +192,9 @@ fly apps restart fashion-app-demo
 
 - `fly ssh console -C` ejecuta el comando sin abrir una sesión interactiva; si
   preferís una shell, entrá con `fly ssh console` y corré `rm -rf /data/demo`.
+- El comando usa `/data/demo` porque `DEMO__DATAROOT=/data/demo` en `fly.toml`.
+  Si cambiás `DEMO__DATAROOT`, borrá esa ruta en su lugar: siempre dentro de
+  `/data` y nunca la raíz personal (el arranque falla si coinciden).
 - Al reiniciar, `DemoSeeder` vuelve a crear la base y las imágenes desde el
   manifiesto.
 - `fly apps restart` **solo** reinicia la Machine: no borra ni vuelve a sembrar
@@ -256,16 +264,34 @@ fly apps create fashion-app-personal
 fly volumes create fashion_data --region gru --size 1 --app fashion-app-personal
 ```
 
-Copiá `fly.toml` a `fly.personal.toml`, cambiá `app = "fashion-app-personal"` y
-dejá `DEMO__ENABLED = "false"` en `[env]`, y deployá con ese archivo:
+Copiá `fly.toml` a `fly.personal.toml` y cambiá `app = "fashion-app-personal"`.
+Dejá `DEMO__ENABLED = "false"` en `[env]` y aplicá los secretos personales
+**antes del primer deploy**: con la demo apagada, el contenedor no arranca en
+`Production` sin `APP__TOKEN`, así que la primera release tiene que encontrarlo
+ya configurado.
 
 ```bash
+fly secrets set --app fashion-app-personal \
+  APP__TOKEN='un-secreto-largo-y-aleatorio' \
+  AI__PROVIDER=gemini \
+  AI__APIKEY='tu-clave-de-gemini'
+
 fly deploy --config fly.personal.toml
 ```
 
-Después aplicá los secretos personales con `--app fashion-app-personal`. No
-commitees `fly.personal.toml` si le agregás valores propios: los secretos van
-siempre por `fly secrets set`.
+Los feeds del digest y `DIGEST__ADMINSECRET` se agregan con el mismo `--app`
+cuando los configures:
+
+```bash
+fly secrets set --app fashion-app-personal \
+  DIGEST__PROVIDER=rss \
+  DIGEST__FEEDS__0__NAME='Fuente' \
+  DIGEST__FEEDS__0__URL='https://ejemplo.com/feed.xml' \
+  DIGEST__ADMINSECRET='otro-secreto-largo'
+```
+
+`fly.personal.toml` está en `.gitignore`: es configuración local y los secretos
+van siempre por `fly secrets set`.
 
 ## 9. Costos, límites y decisiones
 

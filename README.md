@@ -251,7 +251,8 @@ docker compose down -v
   montado en `/data` (`DATA__ROOT=/data`), así que recrear el contenedor no
   borra la demo.
 - `docker-compose.yml` arranca en `Production` con la demo aislada
-  (`DEMO__DATAROOT=/data/demo`), IA y feeds fake y sin job diario.
+  (`DEMO__DATAROOT=/data/demo`), IA y feeds fake y sin generación de digest al
+  arrancar.
 - El build compila el frontend con `VITE_API_URL=/`, así que el bundle llama a
   `/api/*` y `/media/*` en el mismo origen; no queda compilado
   `http://localhost:5210`.
@@ -306,8 +307,8 @@ fly deploy
 fly open
 ```
 
-- La demo corre con IA y feeds fake, sin job diario y en solo lectura, usando
-  `/data/demo` para no tocar nunca datos personales.
+- La demo corre con IA y feeds fake, sin generación de digest al arrancar y en
+  solo lectura, usando `/data/demo` para no tocar nunca datos personales.
 - La instancia personal se activa con secretos:
   `APP__TOKEN`, `AI__PROVIDER=gemini`, `AI__APIKEY` y `DEMO__ENABLED=false`.
 - Reset de la demo: borrar **solo** `/data/demo` por SSH y reiniciar; nunca
