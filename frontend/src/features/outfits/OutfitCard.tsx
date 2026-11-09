@@ -90,11 +90,6 @@ export function OutfitCard({
             </h2>
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-stone-500">
               <span className="truncate">{occasion || 'Sin ocasión'}</span>
-              {outfit.source === 'ai' && (
-                <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-stone-600 uppercase">
-                  IA
-                </span>
-              )}
             </p>
           </div>
 

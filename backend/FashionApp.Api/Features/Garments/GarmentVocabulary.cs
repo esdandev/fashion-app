@@ -1,4 +1,4 @@
-namespace FashionApp.Api.Infrastructure.Ai;
+namespace FashionApp.Api.Features.Garments;
 
 /// <summary>
 /// Closed vocabularies and structural bounds shared by the AI validator and the

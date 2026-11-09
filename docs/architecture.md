@@ -29,8 +29,6 @@ flowchart LR
   end
 
   Feeds["Feeds RSS / Atom"]
-  Gemini["Gemini API"]
-  Fake["Proveedores fake<br/>IA + feeds"]
 
   SPA -->|"GET / y /assets/*"| Static
   SPA -->|"JSON / multipart"| Api
@@ -39,11 +37,8 @@ flowchart LR
   Api --> Uploads
   Media --> Uploads
   Job --> Feeds
-  Job --> Gemini
   Job --> DB
-  Api -->|"analizar prenda / sugerir outfit"| Gemini
-  Api -.->|"tests, CI y demo"| Fake
-  Job -.->|"tests, CI y demo"| Fake
+  Api -->|"sugerir outfits"| Rules["Motor de reglas<br/>sin IA"]
 ```
 
 - **SPA**: React 19 + Vite, ruteo con React Router y caché de servidor con
@@ -56,8 +51,11 @@ flowchart LR
   una miniatura de 400 px. El nombre es el hash del contenido, así que subir
   dos veces la misma foto no duplica archivos ni prendas.
 - **Job de noticias**: un `BackgroundService` corre todos los días a
-  `DIGEST__RUNAT` (07:00 local), lee los feeds configurados, pide un resumen y
-  guarda un digest por fecha. La portada **Hoy** lo consume con `ETag`/`304`.
+  `DIGEST__RUNAT` (07:00 local), lee los feeds configurados, arma el resumen
+  local con el texto del feed y etiquetas por palabras clave, y guarda un digest
+  por fecha. La portada **Hoy** lo consume con `ETag`/`304`.
+- **Outfits**: un motor determinista de reglas y armonía de color arma las
+  combinaciones; no hay proveedor de IA ni llamadas externas.
 
 ## Un solo origen en producción
 
@@ -97,10 +95,10 @@ demo. Así una demo pública nunca puede leer ni borrar datos personales.
 | `DEMO__ENABLED` | `true` | `false` |
 | Datos | `DATA__ROOT/demo` | `DATA__ROOT` |
 | Token | no hace falta | `APP__TOKEN` obligatorio en `Production` |
-| IA | `fake`, sin llamadas de red | Gemini (o `fake` en entornos descartables) |
+| Outfits | motor de reglas | motor de reglas |
 | Feeds / digest | fake, sembrado; sin job | RSS real y job diario |
 | Escrituras | `403` (solo lectura) | permitidas con token |
-| Costo | cero | consumo de cuota de IA |
+| Costo | cero | cero (sin IA) |
 
 ## Deploy
 

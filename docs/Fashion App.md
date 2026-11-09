@@ -10,6 +10,12 @@ fecha: 2026-11-07
 
 # Fashion App (nombre provisional)
 
+> **Actualización 2026-11-09:** la app ya no usa IA. El alta de prendas es
+> manual y por lotes, los outfits se generan con reglas y armonía de color, y el
+> digest usa el resumen del feed con etiquetas inferidas por palabras clave. Las
+> secciones de IA de este documento quedan como registro histórico de las
+> decisiones originales.
+>
 > Documento de diseño de un proyecto personal/portfolio. Reemplazar "Fashion App" por el nombre definitivo en el título y en la sección [[#Decisiones]].
 
 ## Índice
@@ -448,6 +454,7 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 26 | Demo siembra un digest de muestra y no arranca el job diario | Generar el digest con IA en la demo | La portada pública funciona sin costo, sin feeds y sin riesgo de datos personales. |
 | 27 | El validador descarta notas sin título o sin resumen | Aceptar links sin resumen | El anti-objetivo del spec prohíbe un feed de links vacíos. |
 | 28 | El cooldown de refresh se libera si la generación lanza una excepción | Mantener el bloqueo una hora | Un fallo del proveedor no debe impedir reintentar cuando el servicio vuelve. |
+| 29 | Sin IA: alta manual por lotes y outfits por reglas | Gemini/OpenCode para análisis y sugerencias | Elimina claves, costos, errores de proveedor y dependencias externas; el catálogo queda 100% bajo control del usuario. |
 | 29 | Rate limit por IP real detrás del proxy: `Fly-Client-IP`, luego el primer `X-Forwarded-For`, luego la dirección del socket | Particionar por `RemoteIpAddress` | Fly termina TLS y el socket es el edge: sin resolver, todos los visitantes comparten un bucket. La Machine debe quedar accesible solo por el proxy, porque esos headers se falsifican en una conexión directa. |
 | 30 | Aceptar el LCP local de 3,21 s como deuda documentada de la Fase 4 | Reescribir el hero en esta ola | El resto del presupuesto se cumple (CLS 0,060; TBT 42–55 ms) y la causa del LCP todavía es una hipótesis; se prioriza cerrar deploy, demo, CI y documentación. La medición y el criterio de salida quedan en [[perf-followup]]. |
 
@@ -469,3 +476,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-09 | El backend carga automáticamente un archivo `.env` local (sin pisar variables reales); `.env.example` documenta `AI__PROVIDER`, `AI__APIKEY` y `AI__MODEL`. |
 | 2026-11-09 | Agregado adaptador OpenAI Chat Completions: con `AI__PROVIDER=opencode` y un modelo no-Gemini (DeepSeek V4.1 Flash, GLM, Qwen) usa `/openai/v1/chat/completions`, envía la imagen como data URL y expone `apiFamily` en `/api/ai/status`. |
 | 2026-11-09 | Agregado `scripts/run-backend.ps1` para sortear Smart App Control: compila en Release y ejecuta el DLL sin el apphost `.exe`. |
+| 2026-11-09 | Eliminada la IA del producto: alta manual por lotes, outfits solo con reglas, digest con resumen del feed y etiquetas por palabras clave. Se borraron endpoints, clientes, cuotas y pruebas de IA. |

@@ -3,13 +3,13 @@ using System.Net.Http.Json;
 using System.Text;
 using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Infrastructure;
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Storage;
 using ImageMagick;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+// Manual upload suite: no AI analyzer, duplicate photos return 409.
 public sealed class GarmentUploadTests : IDisposable
 {
     private readonly TestAppFactory factory = new();
@@ -21,12 +21,15 @@ public sealed class GarmentUploadTests : IDisposable
     {
         // 2400x1200 forces both the 1600 px normalization and the 400 px thumb.
         var client = factory.CreateClient();
-        using var content = TestImages.Multipart("camisa.jpg", TestImages.CreateJpeg(2400, 1200));
+        using var content = TestImages.MultipartGarment("camisa.jpg", TestImages.CreateJpeg(2400, 1200));
         var response = await client.PostAsync("/api/garments", content);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<CreateGarmentResponse>();
         Assert.False(body!.Deduplicated);
+        Assert.Equal("Camisa de lino", body.Garment.Name);
+        Assert.Equal("beige", body.Garment.ColorName);
+        Assert.Equal(1, body.Garment.Confidence);
         Assert.Equal(2, Directory.GetFiles(factory.UploadsPath, "*.webp").Length);
 
         var hash = Path.GetFileNameWithoutExtension(body.Garment.ImageUrl);
@@ -56,31 +59,30 @@ public sealed class GarmentUploadTests : IDisposable
     }
 
     [Fact]
-    public async Task Uploading_same_file_twice_returns_existing_id()
+    public async Task Uploading_same_file_twice_returns_conflict()
     {
         var client = factory.CreateClient();
         var bytes = TestImages.CreateJpeg(800, 600);
-        var first = await client.PostAsync("/api/garments", TestImages.Multipart("a.jpg", bytes));
-        var second = await client.PostAsync("/api/garments", TestImages.Multipart("b.jpg", bytes));
+        var first = await client.PostAsync("/api/garments", TestImages.MultipartGarment("a.jpg", bytes));
+        var second = await client.PostAsync("/api/garments", TestImages.MultipartGarment("b.jpg", bytes));
 
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         var a = await first.Content.ReadFromJsonAsync<CreateGarmentResponse>();
-        var b = await second.Content.ReadFromJsonAsync<CreateGarmentResponse>();
-        Assert.Equal(a!.Garment.Id, b!.Garment.Id);
-        Assert.True(b.Deduplicated);
+        Assert.NotNull(a);
         Assert.Equal(2, Directory.GetFiles(factory.UploadsPath, "*.webp").Length);
     }
 
     [Fact]
-    public async Task Uploading_same_pixels_with_different_metadata_deduplicates()
+    public async Task Uploading_same_pixels_with_different_metadata_returns_conflict()
     {
         // Different EXIF artist and filename, identical pixels: only a hash over
-        // the normalized bytes (EXIF stripped) can deduplicate these two files.
+        // the normalized bytes (EXIF stripped) can detect the duplicate.
         var client = factory.CreateClient();
-        using var firstContent = TestImages.Multipart(
+        using var firstContent = TestImages.MultipartGarment(
             "original.jpg",
             TestImages.CreateJpeg(800, 600, artist: "Camera A"));
-        using var secondContent = TestImages.Multipart(
+        using var secondContent = TestImages.MultipartGarment(
             "copia.jpg",
             TestImages.CreateJpeg(800, 600, artist: "Camera B"));
 
@@ -88,11 +90,7 @@ public sealed class GarmentUploadTests : IDisposable
         var second = await client.PostAsync("/api/garments", secondContent);
 
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        var a = await first.Content.ReadFromJsonAsync<CreateGarmentResponse>();
-        var b = await second.Content.ReadFromJsonAsync<CreateGarmentResponse>();
-        Assert.Equal(a!.Garment.Id, b!.Garment.Id);
-        Assert.True(b.Deduplicated);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         Assert.Equal(2, Directory.GetFiles(factory.UploadsPath, "*.webp").Length);
     }
 
@@ -109,7 +107,7 @@ public sealed class GarmentUploadTests : IDisposable
     {
         var client = factory.CreateClient();
         var response = await client.PostAsync("/api/garments",
-            TestImages.Multipart("x.jpg", new byte[] { 0xFF, 0xD8, 0xFF, 0x00, 0x01 }));
+            TestImages.MultipartGarment("x.jpg", new byte[] { 0xFF, 0xD8, 0xFF, 0x00, 0x01 }));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var list = await factory.CreateClient().GetFromJsonAsync<GarmentListResponse>("/api/garments");
         Assert.Empty(list!.Items);
@@ -122,14 +120,14 @@ public sealed class GarmentUploadTests : IDisposable
         var client = factory.CreateClient();
         var bytes = TestImages.CreateJpeg(804, 604);
 
-        var first = await client.PostAsync("/api/garments", TestImages.Multipart("a.jpg", bytes));
+        var first = await client.PostAsync("/api/garments", TestImages.MultipartGarment("a.jpg", bytes));
         var created = await first.Content.ReadFromJsonAsync<CreateGarmentResponse>();
 
         Assert.Equal(
             HttpStatusCode.NoContent,
             (await client.DeleteAsync($"/api/garments/{created!.Garment.Id}")).StatusCode);
 
-        var second = await client.PostAsync("/api/garments", TestImages.Multipart("b.jpg", bytes));
+        var second = await client.PostAsync("/api/garments", TestImages.MultipartGarment("b.jpg", bytes));
         var restored = await second.Content.ReadFromJsonAsync<CreateGarmentResponse>();
 
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
@@ -155,7 +153,7 @@ public sealed class GarmentUploadTests : IDisposable
 
         foreach (var (name, bytes) in cases)
         {
-            using var content = TestImages.Multipart(name, bytes);
+            using var content = TestImages.MultipartGarment(name, bytes);
             var response = await client.PostAsync("/api/garments", content);
             Assert.Equal(HttpStatusCode.UnsupportedMediaType, response.StatusCode);
         }
@@ -172,25 +170,33 @@ public sealed class GarmentUploadTests : IDisposable
         bytes[1] = 0xD8;
         bytes[2] = 0xFF;
 
-        using var content = TestImages.Multipart("grande.jpg", bytes);
+        using var content = TestImages.MultipartGarment("grande.jpg", bytes);
         var response = await factory.CreateClient().PostAsync("/api/garments", content);
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
 
     [Fact]
-    public async Task Analyzer_failure_still_saves_garment_with_zero_confidence()
+    public async Task Upload_requires_a_name_and_valid_attributes()
     {
-        using var failing = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-                services.AddSingleton<IGarmentAnalyzer, ThrowingAnalyzer>()));
+        var client = factory.CreateClient();
 
-        var response = await failing.CreateClient().PostAsync("/api/garments",
-            TestImages.Multipart("ok.jpg", TestImages.CreateJpeg(600, 600)));
+        using var noName = TestImages.MultipartGarment(
+            "sin-nombre.jpg",
+            TestImages.CreateJpeg(600, 600),
+            name: "");
+        var missing = await client.PostAsync("/api/garments", noName);
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<CreateGarmentResponse>();
-        Assert.Equal(0, body!.Garment.Confidence);
+        using var badCategory = TestImages.MultipartGarment(
+            "categoria.jpg",
+            TestImages.CreateJpeg(601, 601),
+            category: "sombrero");
+        var invalid = await client.PostAsync("/api/garments", badCategory);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        var list = await client.GetFromJsonAsync<GarmentListResponse>("/api/garments");
+        Assert.Empty(list!.Items);
     }
 
     [Fact]
@@ -198,7 +204,7 @@ public sealed class GarmentUploadTests : IDisposable
     {
         var client = factory.CreateClient();
         var upload = await client.PostAsync("/api/garments",
-            TestImages.Multipart("camisa.jpg", TestImages.CreateJpeg(800, 600)));
+            TestImages.MultipartGarment("camisa.jpg", TestImages.CreateJpeg(800, 600)));
         var body = await upload.Content.ReadFromJsonAsync<CreateGarmentResponse>();
 
         foreach (var url in new[] { body!.Garment.ImageUrl, body.Garment.ThumbUrl })
@@ -245,7 +251,7 @@ public sealed class GarmentUploadTests : IDisposable
     private async Task AssertUploadServesWebpAsync(string fileName, Stream image)
     {
         using (image)
-        using (var content = TestImages.Multipart(fileName, image))
+        using (var content = TestImages.MultipartGarment(fileName, image))
         {
             var client = factory.CreateClient();
             var response = await client.PostAsync("/api/garments", content);

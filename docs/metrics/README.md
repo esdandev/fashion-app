@@ -43,7 +43,6 @@ $env:ASPNETCORE_URLS='http://localhost:8091'
 $env:DATA__ROOT='<temp>\fashion-prod-smoke\data'
 $env:DEMO__ENABLED='true'
 $env:DEMO__DATAROOT='<temp>\fashion-prod-smoke\data\demo'
-$env:AI__PROVIDER='fake'
 $env:DIGEST__PROVIDER='fake'
 $env:DIGEST__GENERATEONSTARTUP='false'
 dotnet FashionApp.Api.dll

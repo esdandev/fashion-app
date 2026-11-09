@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import { useId } from 'react'
 import type { GarmentCategory, Season } from '../../lib/types'
 import { CATEGORY_OPTIONS, SEASON_OPTIONS, STYLE_TAG_OPTIONS } from './garmentLabels'
 import type { GarmentFormValues } from './garmentUpload'
@@ -6,12 +6,8 @@ import type { GarmentFormValues } from './garmentUpload'
 interface GarmentFormProps {
   values: GarmentFormValues
   onChange: (values: GarmentFormValues) => void
-  onSave: () => void
-  onRetry: () => void
-  isSaving: boolean
-  isReanalyzing: boolean
-  confidence?: number
-  error?: string | null
+  disabled?: boolean
+  onRemove?: () => void
 }
 
 const FORMALITY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
@@ -28,21 +24,10 @@ const inputClassName =
 export function GarmentForm({
   values,
   onChange,
-  onSave,
-  onRetry,
-  isSaving,
-  isReanalyzing,
-  confidence,
-  error,
+  disabled = false,
+  onRemove,
 }: GarmentFormProps) {
-  const busy = isSaving || isReanalyzing
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!busy && values.name.trim().length > 0) {
-      onSave()
-    }
-  }
+  const formId = useId()
 
   function toggleSeason(season: Season) {
     const seasons = values.seasons.includes(season)
@@ -66,51 +51,31 @@ export function GarmentForm({
   }
 
   return (
-    <form
-      aria-busy={busy}
-      onSubmit={handleSubmit}
-      className="mt-5 space-y-5 border-t border-stone-200 pt-5"
-    >
-      <div>
-        <h3 className="text-sm font-semibold text-stone-900">
-          Confirmá los datos
-        </h3>
-        <p className="mt-0.5 text-xs text-stone-500">
-          La IA propuso estos atributos. Corregí lo que haga falta antes de
-          guardar.
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs text-stone-500">
+          Completá los datos de esta prenda. Todos los campos son manuales.
         </p>
-        {typeof confidence === 'number' && (
-          <p
-            className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-              confidence < 0.6
-                ? 'bg-amber-50 text-amber-900'
-                : 'bg-stone-100 text-stone-600'
-            }`}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={disabled}
+            className="shrink-0 text-xs font-medium text-stone-500 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Confianza del análisis: {Math.round(confidence * 100)}%
-            {confidence < 0.6 && ' · revisá los datos'}
-          </p>
+            Quitar
+          </button>
         )}
       </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900"
-        >
-          {error}
-        </div>
-      )}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <label
-          htmlFor="garment-name"
+          htmlFor={`${formId}-name`}
           className="flex flex-col gap-1 text-xs font-medium text-stone-500 sm:col-span-2"
         >
           Nombre
           <input
-            id="garment-name"
-            name="name"
+            id={`${formId}-name`}
             type="text"
             required
             maxLength={120}
@@ -118,20 +83,19 @@ export function GarmentForm({
             onChange={(event) =>
               onChange({ ...values, name: event.target.value })
             }
-            disabled={busy}
+            disabled={disabled}
             className={inputClassName}
             placeholder="Camisa de lino"
           />
         </label>
 
         <label
-          htmlFor="garment-category"
+          htmlFor={`${formId}-category`}
           className="flex flex-col gap-1 text-xs font-medium text-stone-500"
         >
           Categoría
           <select
-            id="garment-category"
-            name="category"
+            id={`${formId}-category`}
             value={values.category}
             onChange={(event) =>
               onChange({
@@ -139,7 +103,7 @@ export function GarmentForm({
                 category: event.target.value as GarmentCategory,
               })
             }
-            disabled={busy}
+            disabled={disabled}
             className={inputClassName}
           >
             {CATEGORY_OPTIONS.map((option) => (
@@ -151,27 +115,26 @@ export function GarmentForm({
         </label>
 
         <label
-          htmlFor="garment-color"
+          htmlFor={`${formId}-color`}
           className="flex flex-col gap-1 text-xs font-medium text-stone-500"
         >
           Color
           <input
-            id="garment-color"
-            name="colorName"
+            id={`${formId}-color`}
             type="text"
             maxLength={40}
             value={values.colorName}
             onChange={(event) =>
               onChange({ ...values, colorName: event.target.value })
             }
-            disabled={busy}
+            disabled={disabled}
             className={inputClassName}
             placeholder="beige"
           />
         </label>
 
         <label
-          htmlFor="garment-color-hex"
+          htmlFor={`${formId}-color-hex`}
           className="flex flex-col gap-1 text-xs font-medium text-stone-500"
         >
           Color (hex)
@@ -182,15 +145,14 @@ export function GarmentForm({
               style={{ backgroundColor: values.colorHex }}
             />
             <input
-              id="garment-color-hex"
-              name="colorHex"
+              id={`${formId}-color-hex`}
               type="text"
               maxLength={7}
               value={values.colorHex}
               onChange={(event) =>
                 onChange({ ...values, colorHex: event.target.value })
               }
-              disabled={busy}
+              disabled={disabled}
               className={inputClassName}
               placeholder="#f5f5dc"
             />
@@ -201,18 +163,17 @@ export function GarmentForm({
         </label>
 
         <label
-          htmlFor="garment-formality"
+          htmlFor={`${formId}-formality`}
           className="flex flex-col gap-1 text-xs font-medium text-stone-500"
         >
           Formalidad
           <select
-            id="garment-formality"
-            name="formality"
+            id={`${formId}-formality`}
             value={values.formality}
             onChange={(event) =>
               onChange({ ...values, formality: Number(event.target.value) })
             }
-            disabled={busy}
+            disabled={disabled}
             className={inputClassName}
           >
             {FORMALITY_OPTIONS.map((option) => (
@@ -224,7 +185,7 @@ export function GarmentForm({
         </label>
       </div>
 
-      <fieldset disabled={busy} className="border-0 p-0">
+      <fieldset disabled={disabled} className="border-0 p-0">
         <legend className="mb-2 text-xs font-medium text-stone-500">
           Temporada
         </legend>
@@ -238,7 +199,7 @@ export function GarmentForm({
                 type="checkbox"
                 checked={values.seasons.includes(option.value)}
                 onChange={() => toggleSeason(option.value)}
-                disabled={busy}
+                disabled={disabled}
                 className="size-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
               />
               {option.label}
@@ -247,7 +208,7 @@ export function GarmentForm({
         </div>
       </fieldset>
 
-      <fieldset disabled={busy} className="border-0 p-0">
+      <fieldset disabled={disabled} className="border-0 p-0">
         <legend className="mb-1 text-xs font-medium text-stone-500">
           Etiquetas
         </legend>
@@ -273,7 +234,7 @@ export function GarmentForm({
                   value={option.value}
                   checked={selected}
                   onChange={() => toggleStyleTag(option.value)}
-                  disabled={busy || disabledByLimit}
+                  disabled={disabled || disabledByLimit}
                   className="sr-only"
                 />
                 {option.label}
@@ -282,52 +243,6 @@ export function GarmentForm({
           })}
         </div>
       </fieldset>
-
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 shadow-sm transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isReanalyzing && <Spinner />}
-          Reintentar
-        </button>
-        <button
-          type="submit"
-          disabled={busy || values.name.trim().length === 0}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSaving && <Spinner />}
-          Guardar
-        </button>
-      </div>
-    </form>
-  )
-}
-
-function Spinner() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      className="size-4 animate-spin"
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        stroke="currentColor"
-        strokeWidth="3"
-        className="opacity-25"
-      />
-      <path
-        d="M21 12a9 9 0 0 0-9-9"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
+    </div>
   )
 }

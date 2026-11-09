@@ -1,9 +1,6 @@
-using System.Text.Json;
 using FashionApp.Api.Domain;
 using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
-using FashionApp.Api.Infrastructure.Ai;
-using FashionApp.Api.Infrastructure.Quotas;
 using FashionApp.Api.Infrastructure.RateLimiting;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +9,14 @@ namespace FashionApp.Api.Features.Garments;
 
 public sealed record CreateGarmentResponse(GarmentDto Garment, bool Deduplicated);
 
+/// <summary>
+/// Manual garment upload. The image is normalized and stored, and every
+/// attribute comes from the form: there is no AI analysis in this flow.
+/// </summary>
 public static class GarmentUploadEndpoint
 {
     public static IEndpointRouteBuilder MapGarmentUploadEndpoint(this IEndpointRouteBuilder app)
     {
-        // Kept for compatibility: the frontend uses analyze + confirm so a
-        // cancelled dialog never creates a database row.
         app.MapPost("/api/garments", HandleAsync)
             .DisableAntiforgery()
             .BlockWritesInDemo()
@@ -28,15 +27,15 @@ public static class GarmentUploadEndpoint
     }
 
     private static async Task<IResult> HandleAsync(
-        IFormFile? file,
+        HttpRequest request,
         AppDbContext db,
         IImageNormalizer normalizer,
-        IGarmentAnalyzer analyzer,
-        IAiQuota quota,
         FileStorage storage,
-        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        var form = await request.ReadFormAsync(cancellationToken);
+        var file = form.Files.GetFile("file");
+
         var (normalized, error) = await GarmentImageIntake.TryNormalizeAsync(
             file,
             normalizer,
@@ -45,9 +44,50 @@ public static class GarmentUploadEndpoint
         if (normalized is null)
             return error ?? GarmentImageIntake.InvalidFile();
 
-        // Check for an active existing hash before touching the disk or the
-        // analyzer: re-uploading the same photo must not create a second file or
-        // AI call. Archived rows are ignored so the user can restore them.
+        var name = form["name"].ToString().Trim();
+        var category = form["category"].ToString().Trim();
+        var subcategory = NullIfBlank(form["subcategory"]);
+        var colorName = form["colorName"].ToString().Trim();
+        var colorHex = form["colorHex"].ToString().Trim();
+        var pattern = NullIfBlank(form["pattern"]);
+        var material = NullIfBlank(form["material"]);
+        var brand = NullIfBlank(form["brand"]);
+        var notes = NullIfBlank(form["notes"]);
+        var formality = int.TryParse(form["formality"], out var parsedFormality)
+            ? parsedFormality
+            : 3;
+        var seasons = SplitList(form["seasons"]);
+        var styleTags = SplitList(form["styleTags"]);
+
+        var validationError = GarmentInputRules.Validate(
+            name,
+            requireName: true,
+            category,
+            subcategory,
+            colorName,
+            colorHex,
+            pattern,
+            material,
+            notes,
+            formality,
+            seasons,
+            styleTags);
+
+        if (validationError is not null)
+            return GarmentImageIntake.Problem(
+                StatusCodes.Status400BadRequest,
+                "Datos inválidos",
+                validationError);
+
+        if (!GarmentVocabulary.Categories.Contains(category))
+            return GarmentImageIntake.Problem(
+                StatusCodes.Status400BadRequest,
+                "Categoría inválida",
+                "Elegí una categoría válida para la prenda.");
+
+        var normalizedSeasons = GarmentInputRules.NormalizeSeasons(seasons);
+        var normalizedTags = GarmentInputRules.NormalizeStyleTags(styleTags);
+
         var existing = await db.Garments
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -55,31 +95,16 @@ public static class GarmentUploadEndpoint
                 cancellationToken);
 
         if (existing is not null)
-            return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(existing), true));
-
-        // Nothing is charged for a duplicate: the AI is not called for it. Every
-        // real analysis consumes one unit before touching the provider.
-        if (!await quota.TryConsumeAsync(AiQuotaKinds.Analysis, cancellationToken))
-            return QuotaResults.TooManyRequests(httpContext, AiQuotaKinds.Analysis);
-
-        GarmentAnalysis analysis;
-        try
         {
-            analysis = await GarmentImageIntake.AnalyzeAsync(
-                analyzer,
-                normalized.Original,
-                cancellationToken);
-        }
-        catch (NoGarmentDetectedException)
-        {
-            return GarmentImageIntake.NoGarmentDetected();
+            return GarmentImageIntake.Problem(
+                StatusCodes.Status409Conflict,
+                "Prenda duplicada",
+                "Ya existe una prenda con esa foto en el guardarropa.");
         }
 
         var (imagePath, thumbPath) = await storage.SaveAsync(normalized, cancellationToken);
         var now = DateTimeOffset.UtcNow;
 
-        // An archived row still owns the unique ContentHash. Restoring it keeps
-        // the original id and avoids a unique-index failure on re-upload.
         var archived = await db.Garments
             .FirstOrDefaultAsync(
                 g => g.ContentHash == normalized.ContentHash && g.IsArchived,
@@ -87,11 +112,10 @@ public static class GarmentUploadEndpoint
 
         if (archived is not null)
         {
-            ApplyValues(archived, analysis, imagePath, thumbPath);
+            ApplyValues(archived, imagePath, thumbPath);
             archived.IsArchived = false;
             archived.UpdatedAt = now;
             await db.SaveChangesAsync(cancellationToken);
-
             return Results.Ok(new CreateGarmentResponse(GarmentQuery.ToDto(archived), true));
         }
 
@@ -99,12 +123,9 @@ public static class GarmentUploadEndpoint
         {
             Id = Guid.NewGuid(),
             ContentHash = normalized.ContentHash,
-            ImagePath = imagePath,
-            ThumbPath = thumbPath,
-            CreatedAt = now,
-            UpdatedAt = now
+            CreatedAt = now
         };
-        ApplyValues(garment, analysis, imagePath, thumbPath);
+        ApplyValues(garment, imagePath, thumbPath);
 
         db.Garments.Add(garment);
 
@@ -114,8 +135,6 @@ public static class GarmentUploadEndpoint
         }
         catch (DbUpdateException)
         {
-            // Two concurrent uploads of the same photo: the unique ContentHash
-            // index wins the race, so return the row that was stored first.
             db.Entry(garment).State = EntityState.Detached;
             var winner = await db.Garments
                 .AsNoTracking()
@@ -132,41 +151,37 @@ public static class GarmentUploadEndpoint
         return Results.Created(
             $"/api/garments/{garment.Id}",
             new CreateGarmentResponse(GarmentQuery.ToDto(garment), false));
+
+        void ApplyValues(Garment target, string image, string thumb)
+        {
+            target.Name = name;
+            target.Category = GarmentInputRules.ParseCategory(category);
+            target.Subcategory = subcategory;
+            target.ColorName = colorName;
+            target.ColorHex = colorHex;
+            target.SecondaryColorsJson = null;
+            target.Pattern = pattern;
+            target.Seasons = string.Join(',', normalizedSeasons);
+            target.Formality = formality;
+            target.Material = material;
+            target.Brand = brand;
+            target.StyleTagsJson = System.Text.Json.JsonSerializer.Serialize(normalizedTags);
+            target.Notes = notes;
+            target.ImagePath = image;
+            target.ThumbPath = thumb;
+            target.AnalysisJson = null;
+            target.Confidence = 1;
+            target.UpdatedAt = now;
+        }
     }
 
-    private static void ApplyValues(
-        Garment garment,
-        GarmentAnalysis analysis,
-        string imagePath,
-        string thumbPath)
-    {
-        var colors = (analysis.Colors ?? [])
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => c.Trim())
-            .ToArray();
-        var seasons = GarmentInputRules.NormalizeSeasons(analysis.Seasons);
-        var styleTags = GarmentInputRules.NormalizeStyleTags(analysis.StyleTags);
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-        var name = analysis.Name?.Trim();
-        if (string.IsNullOrEmpty(name))
-            name = "Prenda";
-
-        garment.Name = name;
-        garment.Category = GarmentAnalysisMapping.ParseCategory(analysis.Category);
-        garment.Subcategory = analysis.Subcategory?.Trim();
-        garment.ColorName = colors.FirstOrDefault() ?? "";
-        garment.ColorHex = "";
-        garment.SecondaryColorsJson = colors.Length > 1
-            ? JsonSerializer.Serialize(colors.Skip(1).ToArray())
-            : null;
-        garment.Pattern = analysis.Pattern?.Trim();
-        garment.Seasons = string.Join(',', seasons);
-        garment.Formality = Math.Clamp(analysis.Formality, 1, 5);
-        garment.Material = analysis.Material?.Trim();
-        garment.StyleTagsJson = JsonSerializer.Serialize(styleTags);
-        garment.ImagePath = imagePath;
-        garment.ThumbPath = thumbPath;
-        garment.AnalysisJson = JsonSerializer.Serialize(analysis);
-        garment.Confidence = Math.Clamp(analysis.Confidence, 0, 1);
-    }
+    private static string[] SplitList(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(
+                ',',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

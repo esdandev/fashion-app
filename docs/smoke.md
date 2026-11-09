@@ -21,14 +21,13 @@ dotnet publish backend/FashionApp.Api -c Release -o .tmp/publish
 Remove-Item .tmp/publish/wwwroot -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item frontend/dist .tmp/publish/wwwroot -Recurse
 
-# 3. Arranque con la demo aislada (IA y feeds fake, job apagado)
+# 3. Arranque con la demo aislada (feeds fake, job apagado)
 $root = (Resolve-Path .tmp/smoke).Path
 $env:ASPNETCORE_ENVIRONMENT = 'Production'
 $env:ASPNETCORE_URLS = 'http://127.0.0.1:5099'
 $env:DATA__ROOT = Join-Path $root 'data'
 $env:DEMO__ENABLED = 'true'
 $env:DEMO__DATAROOT = Join-Path $root 'demo'
-$env:AI__PROVIDER = 'fake'
 $env:DIGEST__PROVIDER = 'fake'
 $env:DIGEST__GENERATEONSTARTUP = 'false'
 

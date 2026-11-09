@@ -65,7 +65,7 @@ public static class GarmentEndpoints
                     detail: validationError);
             }
 
-            var category = GarmentAnalysisMapping.ParseCategory(request.Category);
+            var category = GarmentInputRules.ParseCategory(request.Category);
 
             if (request.Name is not null)
                 garment.Name = request.Name.Trim();

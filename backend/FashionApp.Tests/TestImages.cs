@@ -61,6 +61,32 @@ public static class TestImages
         return content;
     }
 
+    /// <summary>
+    /// Multipart upload with the manual attributes the wardrobe expects. The
+    /// backend no longer analyzes the image, so every value comes from here.
+    /// </summary>
+    public static MultipartFormDataContent MultipartGarment(
+        string fileName,
+        byte[] bytes,
+        string name = "Camisa de lino",
+        string category = "top",
+        string colorName = "beige",
+        string colorHex = "#d8c3a5",
+        string seasons = "spring,summer",
+        string styleTags = "minimalista,casual",
+        int formality = 3)
+    {
+        var content = Multipart(fileName, bytes);
+        content.Add(new StringContent(name), "name");
+        content.Add(new StringContent(category), "category");
+        content.Add(new StringContent(colorName), "colorName");
+        content.Add(new StringContent(colorHex), "colorHex");
+        content.Add(new StringContent(seasons), "seasons");
+        content.Add(new StringContent(styleTags), "styleTags");
+        content.Add(new StringContent(formality.ToString()), "formality");
+        return content;
+    }
+
     public static MultipartFormDataContent Multipart(string name, Stream stream)
     {
         if (stream.CanSeek)
@@ -71,6 +97,34 @@ public static class TestImages
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return Multipart(name, buffer.ToArray());
+    }
+
+    public static MultipartFormDataContent MultipartGarment(
+        string fileName,
+        Stream stream,
+        string name = "Camisa de lino",
+        string category = "top",
+        string colorName = "beige",
+        string colorHex = "#d8c3a5",
+        string seasons = "spring,summer",
+        string styleTags = "minimalista,casual",
+        int formality = 3)
+    {
+        if (stream.CanSeek)
+            stream.Position = 0;
+
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return MultipartGarment(
+            fileName,
+            buffer.ToArray(),
+            name,
+            category,
+            colorName,
+            colorHex,
+            seasons,
+            styleTags,
+            formality);
     }
 
     private static MagickImage CreateImage(int width, int height)

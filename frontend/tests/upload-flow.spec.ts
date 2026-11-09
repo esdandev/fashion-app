@@ -4,10 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 
 /**
- * Manual portfolio capture of the flagship flow: upload a photo, let the fake
- * analyzer propose the attributes, review the form and confirm. It records a
- * WebM plus a poster frame and is skipped unless CAPTURE=1, so the normal suite
- * and CI never run it.
+ * Manual portfolio capture of the flagship flow: select a photo, fill the
+ * garment attributes and save. It records a WebM plus a poster frame and is
+ * skipped unless CAPTURE=1, so the normal suite and CI never run it.
  *
  * Usage (from `frontend/`):
  *
@@ -23,7 +22,7 @@ const posterPath = join(screenshotsDir, 'upload-flow-poster.png')
 
 test.skip(process.env.CAPTURE !== '1', 'captura manual (CAPTURE=1)')
 
-test('graba el flujo subir -> analizar -> confirmar', async ({ browser }) => {
+test('graba el flujo subir -> completar -> guardar', async ({ browser }) => {
   test.setTimeout(300_000)
 
   mkdirSync(screenshotsDir, { recursive: true })
@@ -49,24 +48,26 @@ test('graba el flujo subir -> analizar -> confirmar', async ({ browser }) => {
     ).toBeVisible()
 
     await page.waitForTimeout(700)
-    await page.getByRole('button', { name: 'Subir prenda' }).first().click()
+    await page.getByRole('button', { name: 'Subir prendas' }).first().click()
     await expect(page.getByRole('dialog')).toBeVisible()
     await page.waitForTimeout(500)
 
     await page.setInputFiles('input[type=file]', 'tests/fixtures/camisa.jpg')
 
-    // Wait for the proposal (fake provider) and give the recording time to show
-    // the populated form instead of a single frame.
-    await expect(page.getByLabel('Nombre')).toBeVisible()
-    await expect(page.getByRole('dialog')).toContainText('Agregar prenda')
+    // Give the recording time to show the populated form instead of one frame.
+    await expect(page.getByLabel('Nombre').first()).toBeVisible()
+    await expect(page.getByRole('dialog')).toContainText('Subir prendas')
     await page.waitForTimeout(900)
 
-    await page.getByLabel('Nombre').fill('Camisa de lino')
+    await page.getByLabel('Nombre').first().fill('Camisa de lino')
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Color', { exact: true }).fill('beige')
+    await dialog.getByLabel('Color (hex)').fill('#d8c3a5')
     await page.waitForTimeout(500)
     await page.screenshot({ path: posterPath, fullPage: false })
     await page.waitForTimeout(300)
 
-    await page.getByRole('button', { name: 'Guardar' }).click()
+    await page.getByRole('button', { name: 'Guardar todas' }).click()
     await expect(page.getByRole('dialog')).toBeHidden()
     await expect(page.getByText('Camisa de lino')).toBeVisible()
     await page.waitForTimeout(900)

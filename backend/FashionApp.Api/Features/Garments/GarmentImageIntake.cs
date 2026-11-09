@@ -1,12 +1,11 @@
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Storage;
 
 namespace FashionApp.Api.Features.Garments;
 
 /// <summary>
-/// Shared multipart intake for the upload and analyze endpoints. Both accept the
-/// same formats, enforce the same 10 MB limit and normalize the image before any
-/// other work happens, so a corrupt file never reaches the database or the AI.
+/// Shared multipart intake for the manual upload endpoint. It accepts JPEG,
+/// PNG and WebP, enforces the 10 MB limit and normalizes the image before any
+/// database work happens, so a corrupt file never reaches the wardrobe.
 /// </summary>
 internal static class GarmentImageIntake
 {
@@ -53,34 +52,6 @@ internal static class GarmentImageIntake
         }
     }
 
-    /// <summary>
-    /// Runs the analyzer with the product contract: a down provider never turns
-    /// into a 500, it returns <see cref="GarmentAnalysis.Empty"/> so the photo can
-    /// still be confirmed manually (and retried later).
-    /// </summary>
-    public static async Task<GarmentAnalysis> AnalyzeAsync(
-        IGarmentAnalyzer analyzer,
-        byte[] image,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await analyzer.AnalyzeAsync(image, "image/webp", cancellationToken);
-        }
-        catch (NoGarmentDetectedException)
-        {
-            throw;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return GarmentAnalysis.Empty();
-        }
-    }
-
     public static IResult InvalidFile() => Problem(
         StatusCodes.Status400BadRequest,
         "Archivo inválido",
@@ -95,11 +66,6 @@ internal static class GarmentImageIntake
         StatusCodes.Status415UnsupportedMediaType,
         "Formato no soportado",
         "Solo se aceptan imágenes JPEG, PNG o WebP.");
-
-    public static IResult NoGarmentDetected() => Problem(
-        StatusCodes.Status422UnprocessableEntity,
-        "No se detectó una prenda",
-        "La foto no parece contener una prenda. Probá con otra imagen donde se vea la prenda completa.");
 
     public static IResult Problem(int statusCode, string title, string detail) =>
         Results.Problem(statusCode: statusCode, title: title, detail: detail);

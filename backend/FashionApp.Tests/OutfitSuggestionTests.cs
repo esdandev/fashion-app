@@ -1,6 +1,5 @@
 using FashionApp.Api.Domain;
 using FashionApp.Api.Features.Outfits;
-using FashionApp.Api.Infrastructure.Ai;
 
 public sealed class OutfitSuggestionTests
 {

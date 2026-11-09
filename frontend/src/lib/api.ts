@@ -1,12 +1,10 @@
 import type {
-  AnalyzeGarmentResponse,
   AppConfig,
-  ConfirmGarmentRequest,
+  CreateGarmentInput,
   CreateGarmentResponse,
   CreateOutfitRequest,
   DigestDto,
   Garment,
-  GarmentAnalysisProposal,
   GarmentListResponse,
   Outfit,
   PatchGarmentRequest,
@@ -150,48 +148,26 @@ export const api = {
     return garments
   },
 
-  async postGarment(file: File): Promise<CreateGarmentResponse> {
+  /** Creates a garment from a photo and the attributes entered manually. */
+  async createGarment(
+    file: File,
+    values: CreateGarmentInput,
+  ): Promise<CreateGarmentResponse> {
     const body = new FormData()
     body.append('file', file)
+    body.append('name', values.name)
+    body.append('category', values.category)
+    body.append('colorName', values.colorName)
+    body.append('colorHex', values.colorHex)
+    body.append('seasons', values.seasons.join(','))
+    body.append('styleTags', values.styleTags.join(','))
+    body.append('formality', String(values.formality))
 
     // No Content-Type: the browser adds the multipart boundary.
     const response = await fetch(`${API_BASE_URL}/api/garments`, {
       method: 'POST',
       headers: authHeaders(),
       body,
-    })
-
-    return parseResponse<CreateGarmentResponse>(response)
-  },
-
-  /**
-   * Normalizes, stores and analyzes a photo without creating a garment. The
-   * returned content hash is later sent to `confirmGarment` when the user saves.
-   */
-  async analyzeGarment(file: File): Promise<AnalyzeGarmentResponse> {
-    const body = new FormData()
-    body.append('file', file)
-
-    const response = await fetch(`${API_BASE_URL}/api/garments/analyze`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body,
-    })
-
-    return parseResponse<AnalyzeGarmentResponse>(response)
-  },
-
-  /** Creates the garment with the values the user confirmed. No AI call. */
-  async confirmGarment(
-    request: ConfirmGarmentRequest,
-  ): Promise<CreateGarmentResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/garments/confirm`, {
-      method: 'POST',
-      headers: {
-        ...authHeaders(),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
     })
 
     return parseResponse<CreateGarmentResponse>(response)
@@ -218,18 +194,6 @@ export const api = {
     })
 
     return parseResponse<DigestDto>(response)
-  },
-
-  async reanalyze(id: string): Promise<GarmentAnalysisProposal> {
-    const response = await fetch(
-      `${API_BASE_URL}/api/garments/${encodeURIComponent(id)}/reanalyze`,
-      {
-        method: 'POST',
-        headers: authHeaders(),
-      },
-    )
-
-    return parseResponse<GarmentAnalysisProposal>(response)
   },
 
   /**

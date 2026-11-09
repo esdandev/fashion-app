@@ -1,18 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { Garment, GarmentAnalysisProposal } from '../../lib/types'
+import type { Garment } from '../../lib/types'
 import {
-  MAX_GARMENT_FILE_BYTES,
-  garmentFormValuesFromCurrentGarment,
+  EMPTY_GARMENT_FORM_VALUES,
   garmentFormValuesFromGarment,
-  garmentFormValuesFromProposal,
-  normalizeStyleTags,
-  toConfirmRequest,
-  toPatchRequest,
+  garmentValuesFromFile,
   validateGarmentFile,
+  validateGarmentValues,
 } from './garmentUpload'
 
-function file(name: string, type: string, size: number) {
-  return { name, type, size }
+function file(name: string, size = 1024, type = 'image/jpeg'): File {
+  return { name, size, type } as File
 }
 
 const garment: Garment = {
@@ -20,228 +17,70 @@ const garment: Garment = {
   name: 'Camisa de lino',
   category: 'top',
   colorName: 'beige',
-  colorHex: '',
+  colorHex: '#d8c3a5',
   formality: 3,
-  confidence: 0.9,
+  confidence: 1,
   seasons: ['spring', 'summer'],
-  styleTags: ['minimalista', 'casual'],
-  imageUrl: '/media/hash.webp',
-  thumbUrl: '/media/hash-thumb.webp',
+  styleTags: ['minimalista'],
+  imageUrl: '/media/a.webp',
+  thumbUrl: '/media/a-thumb.webp',
 }
 
-describe('validateGarmentFile', () => {
-  it('accepts the supported types at exactly 10 MB', () => {
-    expect(
-      validateGarmentFile(file('camisa.jpg', 'image/jpeg', MAX_GARMENT_FILE_BYTES)),
-    ).toBeNull()
+describe('garmentUpload', () => {
+  it('accepts JPEG, PNG and WebP files under 10 MB', () => {
+    expect(validateGarmentFile(file('camisa.jpg'))).toBeNull()
+    expect(validateGarmentFile(file('camisa.png', 1024, 'image/png'))).toBeNull()
+    expect(validateGarmentFile(file('camisa.webp', 1024, 'image/webp'))).toBeNull()
   })
 
-  it('rejects files over 10 MB with a Spanish message', () => {
-    expect(
-      validateGarmentFile(
-        file('camisa.jpg', 'image/jpeg', MAX_GARMENT_FILE_BYTES + 1),
-      ),
-    ).toBe('La imagen no puede superar los 10 MB.')
-  })
-
-  it('rejects unsupported formats', () => {
-    expect(validateGarmentFile(file('camisa.gif', 'image/gif', 10))).toBe(
+  it('rejects unsupported formats and oversized files', () => {
+    expect(validateGarmentFile(file('camisa.gif', 1024, 'image/gif'))).toBe(
       'Solo se aceptan imágenes JPEG, PNG o WebP.',
+    )
+    expect(validateGarmentFile(file('grande.jpg', 10 * 1024 * 1024 + 1))).toBe(
+      'La imagen no puede superar los 10 MB.',
     )
   })
 
-  it('falls back to the extension when the browser omits the MIME type', () => {
-    expect(validateGarmentFile(file('camisa.WEBP', '', 10))).toBeNull()
+  it('derives a readable name from the file name', () => {
+    expect(garmentValuesFromFile(file('camisa-de-lino.jpg')).name).toBe(
+      'camisa de lino',
+    )
+    expect(garmentValuesFromFile(file('.jpg')).name).toBe('Prenda')
   })
-})
 
-describe('garment form mapping', () => {
-  it('maps a garment to editable values', () => {
+  it('validates the manual attributes', () => {
+    expect(validateGarmentValues(EMPTY_GARMENT_FORM_VALUES)).toBe(
+      'El nombre no puede estar vacío.',
+    )
+    expect(
+      validateGarmentValues({ ...EMPTY_GARMENT_FORM_VALUES, name: 'Camisa' }),
+    ).toBeNull()
+    expect(
+      validateGarmentValues({
+        ...EMPTY_GARMENT_FORM_VALUES,
+        name: 'Camisa',
+        colorHex: 'beige',
+      }),
+    ).toBe('El color hexadecimal debe tener el formato #RRGGBB.')
+    expect(
+      validateGarmentValues({
+        ...EMPTY_GARMENT_FORM_VALUES,
+        name: 'Camisa',
+        formality: 9,
+      }),
+    ).toBe('La formalidad debe estar entre 1 y 5.')
+  })
+
+  it('maps an existing garment back to the form', () => {
     expect(garmentFormValuesFromGarment(garment)).toEqual({
       name: 'Camisa de lino',
       category: 'top',
       colorName: 'beige',
-      colorHex: '',
+      colorHex: '#d8c3a5',
       seasons: ['spring', 'summer'],
       formality: 3,
-      styleTags: ['minimalista', 'casual'],
-    })
-  })
-
-  it('applies a proposal over the current values and keeps fallbacks', () => {
-    const proposal: GarmentAnalysisProposal = {
-      name: '',
-      category: 'not-a-category',
-      subcategory: null,
-      colors: [],
-      pattern: null,
-      seasons: ['winter', 'not-a-season'],
-      formality: 9,
-      material: null,
-      styleTags: ['formal'],
-      confidence: 0.4,
-    }
-
-    expect(
-      garmentFormValuesFromProposal(proposal, garmentFormValuesFromGarment(garment)),
-    ).toEqual({
-      name: 'Camisa de lino',
-      category: 'top',
-      colorName: 'beige',
-      colorHex: '',
-      seasons: ['winter'],
-      formality: 5,
-      styleTags: ['formal'],
-    })
-  })
-
-  it('canonicalizes mixed-case categories and seasons from a proposal', () => {
-    const proposal: GarmentAnalysisProposal = {
-      name: 'Camisa',
-      category: 'Top',
-      subcategory: null,
-      colors: ['Azul'],
-      pattern: null,
-      seasons: ['Winter'],
-      formality: 3,
-      material: null,
-      styleTags: [],
-      confidence: 0.8,
-    }
-
-    expect(
-      garmentFormValuesFromProposal(proposal, garmentFormValuesFromGarment(garment)),
-    ).toMatchObject({
-      category: 'top',
-      seasons: ['winter'],
-      colorName: 'Azul',
-    })
-  })
-
-  it('normalizes tags and clamps formality when building the PATCH body', () => {
-    expect(
-      toPatchRequest({
-        name: '  Camisa vieja  ',
-        category: 'top',
-        colorName: ' blanco ',
-        colorHex: ' #ffffff ',
-        seasons: ['spring'],
-        formality: 0,
-        styleTags: [' casual ', '', 'minimalista'],
-      }),
-    ).toEqual({
-      name: 'Camisa vieja',
-      category: 'top',
-      colorName: 'blanco',
-      colorHex: '#ffffff',
-      seasons: ['spring'],
-      formality: 1,
-      styleTags: ['casual', 'minimalista'],
-    })
-  })
-
-  it('keeps only the closed vocabulary, deduplicates and caps at four tags', () => {
-    expect(
-      normalizeStyleTags([
-        ' Minimalista ',
-        'inventado',
-        'casual',
-        'MINIMALISTA',
-        'formal',
-        'vintage',
-        'y2k',
-      ]),
-    ).toEqual(['minimalista', 'casual', 'formal', 'vintage'])
-  })
-
-  it('omits an empty colorHex so it cannot erase a saved swatch', () => {
-    const patch = toPatchRequest({
-      name: 'Camisa',
-      category: 'top',
-      colorName: 'beige',
-      colorHex: '   ',
-      seasons: [],
-      formality: 3,
-      styleTags: [],
-    })
-    expect(patch).not.toHaveProperty('colorHex')
-
-    const confirm = toConfirmRequest(
-      {
-        name: 'Camisa',
-        category: 'top',
-        colorName: 'beige',
-        colorHex: '',
-        seasons: [],
-        formality: 3,
-        styleTags: [],
-      },
-      'a'.repeat(64),
-    )
-    expect(confirm).not.toHaveProperty('colorHex')
-  })
-
-  it('opens a re-uploaded photo with its current confirmed values', () => {
-    expect(
-      garmentFormValuesFromCurrentGarment({
-        id: '1',
-        name: 'Camisa editada',
-        category: 'outerwear',
-        subcategory: 'camisa',
-        colorName: 'verde',
-        colorHex: '#00aa55',
-        pattern: 'liso',
-        seasons: ['winter'],
-        formality: 4,
-        material: 'lino',
-        styleTags: ['formal'],
-        notes: null,
-      }),
-    ).toEqual({
-      name: 'Camisa editada',
-      category: 'outerwear',
-      colorName: 'verde',
-      colorHex: '#00aa55',
-      seasons: ['winter'],
-      formality: 4,
-      styleTags: ['formal'],
-    })
-  })
-
-  it('builds a confirm request with the analyzed extras and confidence', () => {
-    expect(
-      toConfirmRequest(
-        {
-          name: '  Camisa de lino  ',
-          category: 'top',
-          colorName: ' celeste ',
-          colorHex: ' #abcdef ',
-          seasons: ['spring'],
-          formality: 7,
-          styleTags: [' casual', 'minimalista'],
-        },
-        'a'.repeat(64),
-        {
-          confidence: 0.9,
-          subcategory: 'camisa',
-          pattern: 'liso',
-          material: 'lino',
-        },
-      ),
-    ).toEqual({
-      contentHash: 'a'.repeat(64),
-      name: 'Camisa de lino',
-      category: 'top',
-      subcategory: 'camisa',
-      colorName: 'celeste',
-      colorHex: '#abcdef',
-      pattern: 'liso',
-      seasons: ['spring'],
-      formality: 5,
-      material: 'lino',
-      styleTags: ['casual', 'minimalista'],
-      notes: null,
-      confidence: 0.9,
+      styleTags: ['minimalista'],
     })
   })
 })

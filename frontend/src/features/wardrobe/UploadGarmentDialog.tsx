@@ -1,25 +1,22 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { ChangeEvent, MouseEvent } from 'react'
+import type { ChangeEvent } from 'react'
 import { ApiError, api } from '../../lib/api'
-import type { GarmentAnalysisProposal } from '../../lib/types'
 import { GarmentForm } from './GarmentForm'
 import {
-  EMPTY_GARMENT_FORM_VALUES,
-  garmentFormValuesFromCurrentGarment,
-  garmentFormValuesFromProposal,
-  toConfirmRequest,
-  toPatchRequest,
+  garmentValuesFromFile,
   validateGarmentFile,
+  validateGarmentValues,
 } from './garmentUpload'
 import type { GarmentFormValues } from './garmentUpload'
 
-type Phase =
-  | 'idle'
-  | 'analyzing'
-  | 'form'
-  | 'saving'
-  | 'reanalyzing'
-  | 'upload-error'
+interface Draft {
+  key: string
+  file: File
+  previewUrl: string
+  values: GarmentFormValues
+  status: 'ready' | 'saving' | 'saved' | 'error'
+  error?: string
+}
 
 interface UploadGarmentDialogProps {
   onClose: () => void
@@ -27,8 +24,8 @@ interface UploadGarmentDialogProps {
 }
 
 /**
- * Mounted only while the dialog is open, so every upload starts from a clean
- * state and in-flight requests never leak into the next session.
+ * Batch manual upload: select many photos, fill each garment's attributes and
+ * save them all. No AI analysis happens here.
  */
 export function UploadGarmentDialog({
   onClose,
@@ -36,401 +33,274 @@ export function UploadGarmentDialog({
 }: UploadGarmentDialogProps) {
   const titleId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  const requestRef = useRef(0)
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const draftsRef = useRef<Draft[]>([])
 
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [file, setFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [contentHash, setContentHash] = useState<string | null>(null)
-  const [analysis, setAnalysis] = useState<GarmentAnalysisProposal | null>(null)
-  const [existingGarmentId, setExistingGarmentId] = useState<string | null>(
-    null,
-  )
-  const [values, setValues] = useState<GarmentFormValues | null>(null)
-  const [confidence, setConfidence] = useState<number | undefined>(undefined)
-  const [deduplicated, setDeduplicated] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const busy =
-    phase === 'analyzing' || phase === 'saving' || phase === 'reanalyzing'
+  draftsRef.current = drafts
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  // Object URLs live only as long as the preview they belong to.
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl)
-      }
-    }
-  }, [previewUrl])
-
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) {
-        onClose()
+      if (event.key === 'Escape' && !isSaving) {
+        close()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [busy, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSaving])
 
-  async function analyze(selected: File) {
-    const requestId = ++requestRef.current
-    setPhase('analyzing')
-    setError(null)
-    setDeduplicated(false)
-
-    try {
-      const response = await api.analyzeGarment(selected)
-      if (requestId !== requestRef.current) {
-        return
-      }
-
-      setContentHash(response.contentHash)
-      setAnalysis(response.analysis)
-      setExistingGarmentId(response.existingGarmentId)
-      setValues(
-        response.currentGarment
-          ? garmentFormValuesFromCurrentGarment(response.currentGarment)
-          : garmentFormValuesFromProposal(
-              response.analysis,
-              EMPTY_GARMENT_FORM_VALUES,
-            ),
-      )
-      setConfidence(response.analysis.confidence)
-      setDeduplicated(response.existingGarmentId !== null)
-      setPhase('form')
-    } catch (caught) {
-      if (requestId !== requestRef.current) {
-        return
-      }
-
-      setError(
-        friendlyError(
-          caught,
-          'No pudimos analizar la prenda. Revisá tu conexión e intentá de nuevo.',
-        ),
-      )
-      setPhase('upload-error')
+  function close() {
+    for (const draft of draftsRef.current) {
+      URL.revokeObjectURL(draft.previewUrl)
     }
-  }
-
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0]
-    // Reset the input so choosing the same file again still fires `change`.
-    event.target.value = ''
-    if (!selected) {
-      return
-    }
-
-    setContentHash(null)
-    setAnalysis(null)
-    setExistingGarmentId(null)
-    setValues(null)
-    setDeduplicated(false)
-    setError(null)
-
-    const validationMessage = validateGarmentFile(selected)
-    if (validationMessage) {
-      setFile(null)
-      setPreviewUrl(null)
-      setPhase('idle')
-      setError(validationMessage)
-      return
-    }
-
-    setFile(selected)
-    setPreviewUrl(URL.createObjectURL(selected))
-    await analyze(selected)
-  }
-
-  async function handleSave() {
-    if (!values || !contentHash) {
-      return
-    }
-
-    if (values.name.trim().length === 0) {
-      setError('El nombre no puede estar vacío.')
-      return
-    }
-
-    const requestId = ++requestRef.current
-    setPhase('saving')
-    setError(null)
-
-    try {
-      if (existingGarmentId) {
-        // The photo is already in the wardrobe: keep edits working through the
-        // correction endpoint instead of creating (or silently deduplicating).
-        await api.patchGarment(existingGarmentId, toPatchRequest(values))
-      } else {
-        await api.confirmGarment(
-          toConfirmRequest(values, contentHash, {
-            confidence,
-            subcategory: analysis?.subcategory,
-            pattern: analysis?.pattern,
-            material: analysis?.material,
-          }),
-        )
-      }
-
-      if (requestId !== requestRef.current) {
-        return
-      }
-
-      onSaved()
-    } catch (caught) {
-      if (requestId !== requestRef.current) {
-        return
-      }
-
-      setError(
-        friendlyError(
-          caught,
-          'No pudimos guardar los cambios. Revisá tu conexión e intentá de nuevo.',
-        ),
-      )
-      setPhase('form')
-    }
-  }
-
-  async function handleRetry() {
-    if (busy) {
-      return
-    }
-
-    if (existingGarmentId) {
-      const requestId = ++requestRef.current
-      setPhase('reanalyzing')
-      setError(null)
-
-      try {
-        const proposal: GarmentAnalysisProposal =
-          await api.reanalyze(existingGarmentId)
-        if (requestId !== requestRef.current) {
-          return
-        }
-
-        setAnalysis(proposal)
-        setValues((current) =>
-          garmentFormValuesFromProposal(
-            proposal,
-            current ?? EMPTY_GARMENT_FORM_VALUES,
-          ),
-        )
-        setConfidence(proposal.confidence)
-        // Deliberately no PATCH here: the proposal only refills the form.
-        setPhase('form')
-      } catch (caught) {
-        if (requestId !== requestRef.current) {
-          return
-        }
-
-        setError(
-          friendlyError(
-            caught,
-            'No pudimos volver a analizar la prenda. Intentá de nuevo.',
-          ),
-        )
-        setPhase('form')
-      }
-      return
-    }
-
-    // Draft: analyze the same file again. Nothing is persisted until Guardar.
-    if (file) {
-      await analyze(file)
-    }
-  }
-
-  function handleClose() {
-    if (busy) {
-      return
-    }
-
     onClose()
   }
 
-  function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) {
-      handleClose()
+  function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+    const errors: string[] = []
+    const next: Draft[] = []
+
+    for (const file of files) {
+      const error = validateGarmentFile(file)
+      if (error) {
+        errors.push(`${file.name}: ${error}`)
+        continue
+      }
+
+      next.push({
+        key: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        values: garmentValuesFromFile(file),
+        status: 'ready',
+      })
+    }
+
+    setDrafts((current) => [...current, ...next])
+    setFileError(errors.length > 0 ? errors.join(' ') : null)
+    event.target.value = ''
+  }
+
+  function updateDraft(key: string, values: GarmentFormValues) {
+    setDrafts((current) =>
+      current.map((draft) =>
+        draft.key === key
+          ? { ...draft, values, status: 'ready', error: undefined }
+          : draft,
+      ),
+    )
+  }
+
+  function removeDraft(key: string) {
+    setDrafts((current) => {
+      const draft = current.find((item) => item.key === key)
+      if (draft) {
+        URL.revokeObjectURL(draft.previewUrl)
+      }
+      return current.filter((item) => item.key !== key)
+    })
+  }
+
+  async function saveAll() {
+    setIsSaving(true)
+    let hasErrors = false
+
+    for (const draft of draftsRef.current) {
+      if (draft.status === 'saved') {
+        continue
+      }
+
+      const validation = validateGarmentValues(draft.values)
+      if (validation) {
+        hasErrors = true
+        setDrafts((current) =>
+          current.map((item) =>
+            item.key === draft.key
+              ? { ...item, status: 'error', error: validation }
+              : item,
+          ),
+        )
+        continue
+      }
+
+      setDrafts((current) =>
+        current.map((item) =>
+          item.key === draft.key ? { ...item, status: 'saving' } : item,
+        ),
+      )
+
+      try {
+        await api.createGarment(draft.file, draft.values)
+        setDrafts((current) =>
+          current.map((item) =>
+            item.key === draft.key ? { ...item, status: 'saved' } : item,
+          ),
+        )
+      } catch (caught) {
+        hasErrors = true
+        const message =
+          caught instanceof ApiError
+            ? caught.message
+            : 'No pudimos guardar la prenda. Intentá de nuevo.'
+        setDrafts((current) =>
+          current.map((item) =>
+            item.key === draft.key
+              ? { ...item, status: 'error', error: message }
+              : item,
+          ),
+        )
+      }
+    }
+
+    setIsSaving(false)
+
+    if (!hasErrors) {
+      onSaved()
     }
   }
 
-  const showFileInput =
-    phase === 'idle' || phase === 'analyzing' || phase === 'upload-error'
-  const showForm =
-    values !== null &&
-    (phase === 'form' || phase === 'saving' || phase === 'reanalyzing')
+  const pendingCount = drafts.filter((draft) => draft.status !== 'saved').length
 
   return (
     <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
-      onMouseDown={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/40 backdrop-blur-sm sm:items-center sm:p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isSaving) {
+          close()
+        }
+      }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[92svh] w-full max-w-2xl flex-col overflow-y-auto rounded-t-3xl border border-stone-200 bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6"
+        className="flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 sm:p-6">
           <div>
-            <h2
-              id={titleId}
-              className="font-display text-xl font-semibold tracking-tight text-stone-900"
-            >
-              Agregar prenda
+            <h2 id={titleId} className="font-display text-2xl font-semibold text-stone-900">
+              Subir prendas
             </h2>
-            <p className="mt-0.5 text-sm text-stone-500">
-              Subí una foto y confirmá lo que detectó la IA.
+            <p className="mt-1 text-sm text-stone-500">
+              Elegí una o varias fotos y completá los datos de cada prenda.
             </p>
           </div>
           <button
             type="button"
-            onClick={handleClose}
-            disabled={busy}
+            onClick={close}
+            disabled={isSaving}
+            className="rounded-full p-2 text-stone-500 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Cerrar"
-            className="rounded-full p-2 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              className="size-5"
-            >
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
+            ×
           </button>
         </div>
 
-        {previewUrl && (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100">
-            <img
-              src={previewUrl}
-              alt="Vista previa de la prenda"
-              className="mx-auto max-h-64 w-auto object-contain"
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center transition-colors hover:border-stone-400 hover:bg-stone-100">
+            <span className="text-sm font-medium text-stone-800">
+              Seleccionar fotos
+            </span>
+            <span className="mt-1 text-xs text-stone-500">
+              JPEG, PNG o WebP. Hasta 10 MB por imagen. Podés elegir varias.
+            </span>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              onChange={handleFiles}
+              disabled={isSaving}
+              className="sr-only"
             />
-          </div>
-        )}
+          </label>
 
-        {showFileInput && (
-          <div className="mt-4">
-            <label
-              htmlFor="garment-photo"
-              className="flex flex-col gap-2 text-xs font-medium text-stone-500"
-            >
-              Foto de la prenda
-              <input
-                ref={inputRef}
-                id="garment-photo"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFileChange}
-                disabled={phase === 'analyzing'}
-                className="w-full cursor-pointer rounded-xl border border-dashed border-stone-300 bg-stone-50 px-3 py-2 text-sm text-stone-700 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-stone-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:border-stone-400 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            <p className="mt-1.5 text-[11px] text-stone-400">
-              JPEG, PNG o WebP · máximo 10 MB.
+          {fileError && (
+            <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              {fileError}
             </p>
-            <p className="mt-1.5 rounded-lg bg-stone-50 px-2 py-1.5 text-[11px] text-stone-500">
-              La foto se envía al proveedor de IA configurado (por ejemplo,
-              Gemini) para analizarla y proponer los atributos de la prenda.
-            </p>
-          </div>
-        )}
+          )}
 
-        {phase === 'idle' && !error && (
-          <p className="mt-4 rounded-xl bg-stone-50 p-3 text-xs text-stone-500">
-            Elegí una foto y la IA va a proponer nombre, categoría, color,
-            temporada, formalidad y etiquetas.
+          {drafts.length === 0 ? (
+            <p className="mt-6 text-center text-sm text-stone-500">
+              Todavía no elegiste fotos.
+            </p>
+          ) : (
+            <ul className="mt-5 space-y-4">
+              {drafts.map((draft) => (
+                <li
+                  key={draft.key}
+                  className="rounded-2xl border border-stone-200 bg-white p-4"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row">
+                    <img
+                      src={draft.previewUrl}
+                      alt={`Vista previa de ${draft.file.name}`}
+                      width={96}
+                      height={96}
+                      className="size-24 shrink-0 rounded-xl object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <GarmentForm
+                        values={draft.values}
+                        onChange={(values) => updateDraft(draft.key, values)}
+                        disabled={isSaving || draft.status === 'saved'}
+                        onRemove={() => removeDraft(draft.key)}
+                      />
+                    </div>
+                  </div>
+
+                  {draft.status === 'saved' && (
+                    <p className="mt-3 text-sm font-medium text-emerald-700">
+                      Guardada.
+                    </p>
+                  )}
+                  {draft.status === 'error' && draft.error && (
+                    <p role="alert" className="mt-3 text-sm text-red-700">
+                      {draft.error}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 p-5 sm:p-6">
+          <p className="text-xs text-stone-500">
+            {drafts.length === 0
+              ? 'Sin fotos seleccionadas.'
+              : `${drafts.length} ${drafts.length === 1 ? 'foto' : 'fotos'} · ${pendingCount} pendientes`}
           </p>
-        )}
-
-        {error && phase === 'idle' && (
-          <div
-            role="alert"
-            className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900"
-          >
-            {error}
-          </div>
-        )}
-
-        {phase === 'analyzing' && (
-          <div
-            role="status"
-            className="mt-4 flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-700"
-          >
-            <span
-              aria-hidden="true"
-              className="size-5 animate-spin rounded-full border-2 border-stone-300 border-t-stone-900"
-            />
-            Analizando prenda…
-          </div>
-        )}
-
-        {phase === 'upload-error' && error && (
-          <div
-            role="alert"
-            className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
-          >
-            <p>{error}</p>
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => void handleRetry()}
-              disabled={!file}
-              className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 font-medium text-red-900 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={close}
+              disabled={isSaving}
+              className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Reintentar
+              Cerrar
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveAll()}
+              disabled={isSaving || pendingCount === 0}
+              className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? 'Guardando…' : 'Guardar todas'}
             </button>
           </div>
-        )}
-
-        {deduplicated && showForm && (
-          <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-            Esta foto ya estaba en tu guardarropa. Podés ajustar los datos y
-            guardar los cambios.
-          </p>
-        )}
-
-        {showForm && values && (
-          <GarmentForm
-            values={values}
-            onChange={setValues}
-            onSave={() => void handleSave()}
-            onRetry={() => void handleRetry()}
-            isSaving={phase === 'saving'}
-            isReanalyzing={phase === 'reanalyzing'}
-            confidence={confidence}
-            error={error}
-          />
-        )}
+        </div>
       </div>
     </div>
   )
-}
-
-function friendlyError(caught: unknown, fallback: string): string {
-  if (caught instanceof ApiError) {
-    if (caught.status === 413) {
-      return 'La imagen no puede superar los 10 MB.'
-    }
-
-    if (caught.status === 415) {
-      return 'Solo se aceptan imágenes JPEG, PNG o WebP.'
-    }
-
-    return caught.message
-  }
-
-  return fallback
 }

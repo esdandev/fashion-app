@@ -36,65 +36,20 @@ export interface GarmentFiltersState {
   season: Season | ''
 }
 
-export interface GarmentAnalysisProposal {
-  name: string
-  category: string
-  subcategory: string | null
-  colors: string[]
-  pattern: string | null
-  seasons: string[]
-  formality: number
-  material: string | null
-  styleTags: string[]
-  confidence: number
-}
-
-/** Current confirmed values for an already saved photo. */
-export interface CurrentGarmentValues {
-  id: string
-  name: string
-  category: string
-  subcategory: string | null
-  colorName: string
-  colorHex: string
-  pattern: string | null
-  seasons: string[]
-  formality: number
-  material: string | null
-  styleTags: string[]
-  notes: string | null
-}
-
-/** Result of `POST /api/garments/analyze`; no garment row exists yet. */
-export interface AnalyzeGarmentResponse {
-  contentHash: string
-  imageUrl: string
-  thumbUrl: string
-  analysis: GarmentAnalysisProposal
-  existingGarmentId: string | null
-  currentGarment: CurrentGarmentValues | null
-}
-
-/** Mirrors `ConfirmGarmentRequest` on the API. */
-export interface ConfirmGarmentRequest {
-  contentHash: string
-  name: string
-  category: GarmentCategory
-  subcategory?: string | null
-  colorName: string
-  colorHex?: string
-  pattern?: string | null
-  seasons: Season[]
-  formality: number
-  material?: string | null
-  styleTags: string[]
-  notes?: string | null
-  confidence?: number
-}
-
 export interface CreateGarmentResponse {
   garment: Garment
   deduplicated: boolean
+}
+
+/** Manual attributes sent with a garment photo. */
+export interface CreateGarmentInput {
+  name: string
+  category: GarmentCategory
+  colorName: string
+  colorHex: string
+  seasons: Season[]
+  formality: number
+  styleTags: string[]
 }
 
 /** Public runtime flags used to hide write actions in the demo. */

@@ -15,7 +15,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Garment> Garments => Set<Garment>();
     public DbSet<Outfit> Outfits => Set<Outfit>();
     public DbSet<OutfitItem> OutfitItems => Set<OutfitItem>();
-    public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
     public DbSet<Digest> Digests => Set<Digest>();
     public DbSet<DigestItem> DigestItems => Set<DigestItem>();
 
@@ -85,11 +84,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .HasForeignKey(i => i.GarmentId)
             .OnDelete(DeleteBehavior.Restrict);
         outfitItem.HasIndex(i => new { i.OutfitId, i.SortOrder });
-
-        var usageCounter = modelBuilder.Entity<UsageCounter>();
-        usageCounter.ToTable("UsageCounters");
-        usageCounter.HasKey(c => new { c.Date, c.Kind });
-        usageCounter.Property(c => c.Kind).HasMaxLength(30).IsRequired();
 
         // A single digest per day: re-generating a date replaces the previous row.
         var digest = modelBuilder.Entity<Digest>();

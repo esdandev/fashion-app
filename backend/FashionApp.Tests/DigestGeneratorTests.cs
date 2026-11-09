@@ -1,7 +1,6 @@
 using FashionApp.Api.Domain;
 using FashionApp.Api.Features.Digest;
 using FashionApp.Api.Infrastructure;
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Feeds;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

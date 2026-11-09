@@ -10,10 +10,6 @@ interface GarmentCardProps {
   readOnly?: boolean
 }
 
-function needsReview(garment: Garment): boolean {
-  return garment.confidence < 0.6
-}
-
 function friendlyError(caught: unknown): string {
   return caught instanceof ApiError
     ? caught.message
@@ -49,14 +45,6 @@ export function GarmentCard({ garment, readOnly = false }: GarmentCardProps) {
           decoding="async"
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
         />
-        {needsReview(garment) && (
-          <span
-            className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-amber-800 shadow-sm backdrop-blur"
-            title={`Confianza del análisis: ${Math.round(garment.confidence * 100)}%`}
-          >
-            Revisar
-          </span>
-        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-4">

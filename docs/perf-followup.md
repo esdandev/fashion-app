@@ -43,7 +43,7 @@ simulado; por eso la causa sigue siendo una hipótesis.
 ## Objetivo
 
 Bajar el LCP p75 móvil local a **≤ 2,5 s** sin degradar CLS (≤ 0,1), INP/TBT ni
-el resto de la portada, y sin tocar los proveedores de IA/feeds.
+el resto de la portada, y sin tocar los feeds.
 
 ## Hipótesis a validar
 
@@ -83,7 +83,7 @@ el resto de la portada, y sin tocar los proveedores de IA/feeds.
 
 ## Fuera de alcance
 
-- Cambiar el proveedor de IA o los feeds reales.
+- Cambiar los feeds reales ni el motor de outfits.
 - Introducir SSR o un framework distinto: primero medir si el prefetch y la
   estabilización del hero alcanzan.
 - Optimizar el LCP de la instancia personal con datos reales; esta tarea mide

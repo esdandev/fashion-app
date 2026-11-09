@@ -14,7 +14,7 @@ const dataDir = join(repoDir, '.test-data')
 const dbPath = join(dataDir, 'e2e.db')
 const uploadsDir = join(dataDir, 'uploads')
 const project = join(repoDir, 'backend', 'FashionApp.Api')
-const dll = join(project, 'bin', 'Debug', 'net10.0', 'FashionApp.Api.dll')
+const dll = join(project, 'bin', 'Release', 'net10.0', 'FashionApp.Api.dll')
 
 // On Windows the PATH entry can be an npm `.cmd` shim that Node cannot spawn
 // without a shell. Prefer the real host when it is installed in the default
@@ -28,12 +28,21 @@ const dotnet =
 rmSync(dataDir, { recursive: true, force: true })
 mkdirSync(dataDir, { recursive: true })
 
-const build = spawnSync(dotnet, ['build', project, '--nologo', '-v', 'q'], {
-  cwd: repoDir,
-  stdio: 'inherit',
-})
-if (build.status !== 0) {
-  process.exit(build.status ?? 1)
+// Smart App Control occasionally blocks a freshly built DLL. Setting
+// E2E_SKIP_BUILD=1 reuses the current Release output (useful after copying a
+// build the OS already approved).
+if (process.env.E2E_SKIP_BUILD !== '1') {
+  const build = spawnSync(
+    dotnet,
+    ['build', project, '--nologo', '-v', 'q', '-c', 'Release'],
+    {
+      cwd: repoDir,
+      stdio: 'inherit',
+    },
+  )
+  if (build.status !== 0) {
+    process.exit(build.status ?? 1)
+  }
 }
 
 const child = spawn(dotnet, [dll, '--urls', 'http://localhost:5210'], {
@@ -43,7 +52,6 @@ const child = spawn(dotnet, [dll, '--urls', 'http://localhost:5210'], {
     ASPNETCORE_ENVIRONMENT: 'Development',
     ConnectionStrings__Default: `Data Source=${dbPath}`,
     Storage__Root: uploadsDir,
-    Ai__Provider: 'fake',
     // The digest E2E drives generation through the admin refresh endpoint, so
     // the startup job stays off. The fake feed avoids any network access and
     // the fixed secret is the one the spec sends.
@@ -53,6 +61,7 @@ const child = spawn(dotnet, [dll, '--urls', 'http://localhost:5210'], {
     Digest__Feeds: '[]',
     Demo__Enabled: 'false',
     App__Token: '',
+    RateLimiting__Enabled: 'false',
   },
   stdio: 'inherit',
 })

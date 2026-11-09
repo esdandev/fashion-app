@@ -270,23 +270,6 @@ namespace FashionApp.Api.Migrations
                     b.ToTable("OutfitItems", (string)null);
                 });
 
-            modelBuilder.Entity("FashionApp.Api.Domain.UsageCounter", b =>
-                {
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Kind")
-                        .HasMaxLength(30)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Count")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Date", "Kind");
-
-                    b.ToTable("UsageCounters", (string)null);
-                });
-
             modelBuilder.Entity("FashionApp.Api.Domain.DigestItem", b =>
                 {
                     b.HasOne("FashionApp.Api.Domain.Digest", "Digest")

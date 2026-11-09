@@ -1,4 +1,4 @@
-using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Infrastructure.Feeds;
 
 namespace FashionApp.Api.Features.Digest;

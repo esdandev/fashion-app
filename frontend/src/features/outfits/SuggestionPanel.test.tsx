@@ -161,7 +161,7 @@ describe('SuggestionPanel', () => {
 
     expect(
       await screen.findByText(
-        /cuota diaria de sugerencias.*60 minutos/i,
+        /demasiadas solicitudes.*60 minutos/i,
       ),
     ).toBeInTheDocument()
   })
@@ -187,7 +187,7 @@ describe('SuggestionPanel', () => {
 
     expect(
       await screen.findByText(
-        /cuota diaria de sugerencias.*Probá de nuevo mañana/i,
+        /demasiadas solicitudes.*en un rato/i,
       ),
     ).toBeInTheDocument()
     expect(

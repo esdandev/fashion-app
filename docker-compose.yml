@@ -10,7 +10,6 @@ services:
       DATA__ROOT: /data
       DEMO__ENABLED: "true"
       DEMO__DATAROOT: /data/demo
-      AI__PROVIDER: fake
       DIGEST__PROVIDER: fake
       DIGEST__GENERATEONSTARTUP: "false"
     volumes:

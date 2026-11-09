@@ -45,12 +45,12 @@ function draftKey(draft: OutfitDraft): string {
 function quotaMessage(error: ApiError): string {
   if (error.retryAfterSeconds) {
     const minutes = Math.max(1, Math.ceil(error.retryAfterSeconds / 60))
-    return `Se alcanzó la cuota diaria de sugerencias. Probá de nuevo en ${minutes} ${
+    return `Demasiadas solicitudes. Probá de nuevo en ${minutes} ${
       minutes === 1 ? 'minuto' : 'minutos'
     }.`
   }
 
-  return 'Se alcanzó la cuota diaria de sugerencias. Probá de nuevo mañana.'
+  return 'Demasiadas solicitudes. Probá de nuevo en un rato.'
 }
 
 function errorMessage(caught: unknown): string {
@@ -168,7 +168,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
             Sugerencias de outfits
           </h2>
           <p className="mt-1 text-sm text-stone-500">
-            Elegí una ocasión y el clima. La IA propone combinaciones con tus
+            Elegí una ocasión y el clima. El motor de reglas propone combinaciones con tus
             prendas; nada se guarda hasta que toques Guardar.
           </p>
         </div>
@@ -309,7 +309,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
         >
           <p className="font-medium">
             {suggestErrorIsQuota
-              ? 'Cuota diaria de sugerencias agotada'
+              ? 'Demasiadas solicitudes'
               : 'No pudimos generar sugerencias.'}
           </p>
           <p className="mt-1">{errorMessage(suggestError)}</p>

@@ -18,7 +18,7 @@ las imágenes viven en el volumen persistente `fashion_data` montado en `/data`.
 - HTTPS forzado, sin auto-stop (`auto_stop_machines = false`) y una Machine
   siempre encendida (`min_machines_running = 1`);
 - `DATA__ROOT=/data` y `DEMO__DATAROOT=/data/demo`;
-- IA y feeds fake, sin generación de digest al arrancar;
+- feeds fake, sin generación de digest al arrancar;
 - solo lectura: las escrituras de la demo responden `403`.
 
 ---
@@ -218,8 +218,6 @@ personal):
 ```bash
 fly secrets set \
   APP__TOKEN='un-secreto-largo-y-aleatorio' \
-  AI__PROVIDER=gemini \
-  AI__APIKEY='tu-clave-de-gemini' \
   DEMO__ENABLED=false
 
 fly deploy
@@ -279,9 +277,7 @@ ya configurado.
 
 ```bash
 fly secrets set --app fashion-app-personal \
-  APP__TOKEN='un-secreto-largo-y-aleatorio' \
-  AI__PROVIDER=gemini \
-  AI__APIKEY='tu-clave-de-gemini'
+  APP__TOKEN='un-secreto-largo-y-aleatorio'
 
 fly deploy --config fly.personal.toml
 ```

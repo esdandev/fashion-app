@@ -1,7 +1,7 @@
 # Fashion App
 
-App web personal de moda: subí la foto de una prenda, la IA la cataloga y el
-guardarropa se convierte en la base para armar outfits y leer un resumen diario
+App web personal de moda: subí fotos de tus prendas, completá sus datos a mano
+y convertí el guardarropa en la base para armar outfits y leer un resumen diario
 de noticias relacionado con lo que ya tenés.
 
 Proyecto de portfolio: un solo dueño, un solo contenedor, sin cuentas. La API
@@ -51,26 +51,24 @@ portfolio, no un test de regresión.
 
 ## Features
 
-- **Alta asistida por IA.** La foto se normaliza a WebP (EXIF eliminado,
-  miniatura de 400 px) y se analiza para proponer nombre, categoría, color,
-  temporada, formalidad y etiquetas de estilo. El alta va en dos pasos
-  (analizar → confirmar), así cerrar el diálogo nunca deja una fila huérfana.
+- **Alta manual y por lotes.** La foto se normaliza a WebP (EXIF eliminado,
+  miniatura de 400 px) y vos completás nombre, categoría, color, temporada,
+  formalidad y etiquetas. Podés elegir varias fotos y guardarlas juntas.
 - **Guardarropa filtrable y editable.** Grilla responsive con filtros por categoría, color
   y temporada, paginación acumulativa y muestra del color real de cada prenda.
   Cada prenda se puede eliminar con confirmación; los outfits guardados conservan su foto.
-- **Outfits con prendas reales.** Sugerencias por ocasión y clima, collage vertical
-  tipo maniquí con las fotos, guardado con la razón de la propuesta, edición manual
-  (nombre, ocasión, favorito y composición) y eliminación con confirmación.
-- **Portada Hoy.** Digest diario generado desde feeds RSS, con resumen propio,
-  etiquetas de estilo, links a las fuentes y las prendas del guardarropa que
-  combinan con cada noticia. La respuesta usa `ETag`/`304` y caché privada.
-- **Demo pública de solo lectura.** Datos sembrados, IA y feeds fake, costo
-  cero y todas las escrituras responden `403`.
-- **Límites y abuso controlados.** Cuotas diarias de IA, rate limit por IP y
-  errores `ProblemDetails` en español.
-- **Privacidad por diseño.** El token es un secreto compartido, las imágenes se
-  envían al proveedor de IA solo al analizarlas y la portada no expone prendas
-  a requests sin token cuando la instancia personal lo exige.
+- **Outfits con prendas reales.** Combinaciones por reglas según ocasión y clima,
+  collage vertical tipo maniquí, edición manual (nombre, ocasión, favorito y
+  composición) y eliminación con confirmación.
+- **Portada Hoy.** Digest diario desde feeds RSS, con el resumen del feed,
+  etiquetas inferidas por palabras clave, links a las fuentes y las prendas del
+  guardarropa que combinan con cada noticia. La respuesta usa `ETag`/`304` y caché privada.
+- **Demo pública de solo lectura.** Datos sembrados, feeds fake, costo cero y
+  todas las escrituras responden `403`.
+- **Límites y abuso controlados.** Rate limit por IP y errores `ProblemDetails` en español.
+- **Privacidad por diseño.** El token es un secreto compartido, las imágenes no
+  salen del servidor y la portada no expone prendas a requests sin token cuando
+  la instancia personal lo exige.
 
 ## Stack
 
@@ -79,8 +77,8 @@ portfolio, no un test de regresión.
 | Backend | .NET 10, Minimal APIs, EF Core 10, SQLite |
 | Frontend | Vite 8, React 19, TypeScript, Tailwind 4, TanStack Query 5, React Router 7 |
 | Imágenes | Magick.NET (WebP, EXIF eliminado, miniaturas de 400 px) |
-| IA | Gemini detrás de `IGarmentAnalyzer` / `IOutfitSuggester`; implementaciones `fake` para desarrollo, tests y demo |
-| Noticias | Feeds RSS/Atom + `BackgroundService` diario; resumen con Gemini o fake |
+| Motor de outfits | Reglas deterministas + armonía de color, sin IA |
+| Noticias | Feeds RSS/Atom + `BackgroundService` diario; resumen local con palabras clave |
 | Infra | Docker multi-stage, Fly.io, volumen `/data`, GitHub Actions |
 | Tests | xUnit + `WebApplicationFactory`, Vitest + Testing Library, Playwright, Lighthouse |
 
@@ -92,7 +90,7 @@ flowchart LR
   SPA -->|"/media/*"| Media["WebP + miniaturas"]
   API --> DB[("SQLite")]
   API --> Uploads[("uploads/")]
-  Job["Job diario de RSS + IA"] --> DB
+  Job["Job diario de RSS"] --> DB
   Media --> Uploads
 ```
 
@@ -101,9 +99,9 @@ flowchart LR
 - **Una sola raíz de datos:** `DATA__ROOT` deriva `fashion.db` y `uploads/`. La
   demo usa una raíz propia (`DATA__ROOT/demo`) y el arranque falla si intenta
   apuntar a la base o a los uploads personales.
-- **La IA propone, el backend valida:** ids, URLs, etiquetas y composiciones se
-  revalidan antes de persistir. Los proveedores fake hacen deterministas el CI
-  y la demo.
+- **Las reglas componen, el backend valida:** composiciones, ids y etiquetas se
+  revalidan antes de persistir. El motor es determinista y no llama a ningún
+  proveedor externo.
 
 Diagrama completo, decisiones y topología de deploy:
 [docs/architecture.md](docs/architecture.md).
@@ -123,7 +121,6 @@ Desde la raíz del repositorio:
 
 ```powershell
 # PowerShell
-$env:Ai__Provider='fake'
 dotnet run --project backend/FashionApp.Api
 ```
 
@@ -140,7 +137,7 @@ dotnet run --project backend/FashionApp.Api
 
 ```bash
 # Linux/macOS
-Ai__Provider=fake dotnet run --project backend/FashionApp.Api
+dotnet run --project backend/FashionApp.Api
 ```
 
 - API: `http://localhost:5210` (definido en
@@ -148,80 +145,18 @@ Ai__Provider=fake dotnet run --project backend/FashionApp.Api
 - Health check: `GET http://localhost:5210/api/health`.
 - Datos: `data/fashion.db` y `data/uploads/` (fuera de git). Cambiá la raíz con
   `DATA__ROOT`.
-- `Ai__Provider=fake` devuelve una camisa de lino determinística, sin red ni
-  costo. Para usar Gemini, definí las variables **en la misma terminal** y
-  antes de arrancar:
-
-```powershell
-$env:AI__PROVIDER='gemini'
-$env:AI__APIKEY='tu-clave'
-$env:AI__MODEL='gemini-3.8-flash'   # opcional; ya es el default
-dotnet run --project backend/FashionApp.Api
-```
-
-  La clave sola no activa Gemini: si `AI__PROVIDER` queda en `fake`, la app
-  sigue respondiendo datos de ejemplo. La app lee automáticamente un archivo
-  `.env` en la raíz del repo (o hasta cinco carpetas arriba) al arrancar; las
-  variables reales del entorno tienen prioridad. La forma más simple:
-
-```powershell
-Copy-Item .env.example .env
-# editá .env con AI__PROVIDER=opencode y AI__APIKEY=...
-dotnet run --project backend/FashionApp.Api
-```
-- Verificá la configuración activa con `GET /api/ai/status` (si definiste
-  `APP__TOKEN`, mandá `X-App-Token`). Debe responder `provider: "gemini"` y
-  `keyConfigured: true`.
-- Si la IA devuelve confianza 0 o el log muestra un error de Gemini, probá la
-  clave y el modelo fuera de la app:
-
-```powershell
-.\scripts\check-gemini.ps1
-.\scripts\check-gemini.ps1 -ListModels
-```
-
-  El modelo `gemini-2.0-flash` está retirado desde junio de 2026. El default es
-  `gemini-3.8-flash`; si tu cuenta no lo tiene, elegí otro de `-ListModels` y
-  definí `AI__MODEL`.
-- **OpenCode como proveedor.** OpenCode Console expone una API de inferencia en
-  `https://opencode.ai/inference`, con endpoints compatibles con Gemini, OpenAI
-  y Anthropic. La app usa el endpoint Gemini-compatible, así que el análisis de
-  imágenes funciona con modelos Gemini:
-
-```powershell
-$env:AI__PROVIDER='opencode'
-$env:AI__APIKEY='<personal-api-key-de-opencode>'
-$env:AI__MODEL='gemini-4-argon'   # opcional; ya es el default de OpenCode
-dotnet run --project backend/FashionApp.Api
-```
-
-  La clave es una **API key personal de OpenCode Console**, no la sesión del
-  agente. Los modelos free solo funcionan dentro de OpenCode y devuelven `403`
-  desde otros clientes; usá un modelo pago o una suscripción Go. `AI__BASEURL`
-  permite apuntar a otro gateway compatible. Verificá con
-  `.\scripts\check-opencode.ps1` o `.\scripts\check-opencode.ps1 -ListModels`.
-  Si devuelve `Account.InsufficientFunds`, la clave es válida pero la cuenta no
-  tiene saldo/Go para ese modelo: cargá crédito en OpenCode Console o cambiá a
-  `AI__PROVIDER=gemini` con una clave de Google AI Studio.
-- **DeepSeek V4.1 Flash.** Es multimodal y usa OpenAI Chat Completions; la app
-  detecta la familia automáticamente por el nombre del modelo:
-
-```env
-AI__PROVIDER=opencode
-AI__APIKEY='<personal-api-key-de-opencode>'
-AI__MODEL=deepseek-v4.1-flash
-```
-
-  `GET /api/ai/status` debe mostrar `"apiFamily":"OpenAi"`. Es un modelo pago
-  ($0.30/$1.20 por 1M de tokens); si devuelve `Account.InsufficientFunds`,
-  cargá saldo/Go en Console. `deepseek-v4.1-flash-free` solo funciona dentro de
-  OpenCode, no desde la app. Verificá con:
-
-```powershell
-.\scripts\check-opencode.ps1 -Family openai -Model deepseek-v4.1-flash
-```
+- La app **no usa IA**: cada prenda se carga con datos manuales (nombre,
+  categoría, color, temporada, formalidad y etiquetas). No hay claves de modelos
+  ni costos de inferencia.
+- El formulario de alta acepta **varias fotos a la vez**; cada una recibe su
+  propio formulario y se guardan juntas con “Guardar todas”.
+- La app lee automáticamente un `.env` en la raíz del repo (o hasta ocho
+  carpetas arriba) al arrancar; las variables reales del entorno tienen
+  prioridad. `.env.example` solo documenta `APP__TOKEN` y `DATA__ROOT`.
 - En `Development`, `Digest__Provider=fake` devuelve ocho notas de ejemplo;
   para feeds reales usá `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`.
+- Los outfits se generan con un **motor de reglas y armonía de color**; no hay
+  proveedor externo ni cuota de IA.
 
 ### 2. Frontend
 
@@ -274,11 +209,11 @@ Playwright usa `.test-data` (SQLite + uploads) y lo borra al inicio de cada
 run; nunca toca `data/`. Antes de correrlo, **detené cualquier backend o Vite
 propio en los puertos 5210/5173**: el runner no reutiliza servidores existentes
 (`reuseExistingServer: false`) para no mutar datos reales. La API de test corre
-con IA y feeds fake, sin token y con `Demo__Enabled=false`. Los specs cubren:
+con feeds fake, sin token y con `Demo__Enabled=false`. Los specs cubren:
 
-- **Guardarropa:** subir foto, confirmar, editar, ver la prenda, spinner,
-  reanálisis, cancelación, eliminación, rechazo de archivos > 10 MB y demo de solo lectura.
-- **Outfits:** sugerir, guardar con `source=ai`, crear a mano, renombrar y eliminar.
+- **Guardarropa:** alta manual, lote de varias fotos, edición, cancelación,
+  eliminación, rechazo de archivos > 10 MB y demo de solo lectura.
+- **Outfits:** generar con reglas, guardar, crear a mano, renombrar y eliminar.
 - **Hoy:** sembrar una prenda, regenerar el digest con `X-Admin-Secret` y
   verificar el hero, el link externo y la miniatura relacionada.
 
@@ -318,12 +253,6 @@ Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
 | `APP__ALLOWANONYMOUS` | `false` | Escape hatch explícito para una instancia personal sin token en `Production`. |
 | `DEMO__ENABLED` | `false` | Modo demo: siembra datos, usa su propia raíz y rechaza escrituras con `403`. |
 | `DEMO__DATAROOT` | `<DATA__ROOT>/demo` | Raíz de datos de la demo. No puede coincidir con la base ni los uploads personales. |
-| `AI__PROVIDER` | `fake` | `fake`, `gemini` u `opencode`. |
-| `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER` es `gemini` u `opencode`. |
-| `AI__MODEL` | según proveedor | `gemini-3.8-flash` con Gemini; `gemini-4-argon` con OpenCode. Podés overridearlo. |
-| `AI__BASEURL` | vacío | Override del base URL del proveedor. OpenCode usa `https://opencode.ai/inference`. |
-| `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA por día (calendario UTC). |
-| `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits por día. Comparte el contador atómico en SQLite. |
 | `DIGEST__PROVIDER` | `rss` (`fake` en `Development`) | `rss` lee feeds reales; `fake` devuelve notas determinísticas sin red. |
 | `DIGEST__FEEDS` | `[]` | Lista de `{ "Name", "Url" }` de feeds RSS/Atom. |
 | `DIGEST__RUNAT` | `07:00` | Hora local del servidor del job diario. |
@@ -355,9 +284,8 @@ fly deploy
 fly open
 ```
 
-La demo corre con IA y feeds fake, solo lectura. La instancia personal se
-activa con secretos (`APP__TOKEN`, `AI__PROVIDER=gemini`, `AI__APIKEY`,
-`DEMO__ENABLED=false`).
+La demo corre con feeds fake y es de solo lectura. La instancia personal se
+activa con secretos (`APP__TOKEN`, `DEMO__ENABLED=false`). No hay claves de IA.
 
 Comandos completos, verificación, reset de demo y límites:
 **[docs/deploy.md](docs/deploy.md)**.
@@ -447,8 +375,8 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 - **Fotos de demo genéricas.** Los assets del manifiesto son placeholders
   generados con Magick.NET y llevan la palabra «Demo» impresa. Reemplazarlos
   por fotos con licencia antes de un portfolio público.
-- **Demo con IA fake.** La demo pública no representa la calidad del análisis
-  real: usa el analizador y los feeds determinísticos para tener costo cero.
+- **Demo con feeds fake.** La demo pública usa notas de ejemplo para tener
+  costo cero; los feeds reales se configuran con `DIGEST__FEEDS`.
 - **Token, no autenticación.** `APP__TOKEN` es un secreto compartido de un solo
   usuario; no hay cuentas, sesiones ni permisos por usuario.
 - **SQLite y una sola Machine.** No hay escritura concurrente multi-nodo ni
@@ -470,9 +398,9 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 .
 ├── backend/
 │   ├── FashionApp.Api/          API .NET, dominio, features, infraestructura
-│   │   ├── Domain/              Garment, Outfit, Digest, cuotas
+│   │   ├── Domain/              Garment, Outfit, Digest
 │   │   ├── Features/            endpoints de garments, outfits, digest y security
-│   │   └── Infrastructure/      EF Core, storage, IA, feeds, demo, rate limit
+│   │   └── Infrastructure/      EF Core, storage, feeds, demo, rate limit
 │   └── FashionApp.Tests/        xUnit + WebApplicationFactory
 ├── frontend/
 │   ├── src/                     React 19 + Vite
@@ -507,22 +435,19 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 | GET | `/api/digest/today` | Último digest disponible con `ETag`/`304`; `404` si no hay ninguno. |
 | POST | `/api/digest/refresh` | Regenera el digest de hoy con `X-Admin-Secret`, cooldown de 1 h y bloqueo en demo. |
 | GET | `/api/garments` | Listado paginado con filtros `category`, `color`, `season`, `cursor`. |
-| POST | `/api/garments/analyze` | Multipart: normaliza, guarda la imagen y analiza **sin** crear la prenda. |
-| POST | `/api/garments/confirm` | Crea la prenda con los valores confirmados; deduplica por hash. |
+| POST | `/api/garments` | Multipart: normaliza la imagen y crea la prenda con los atributos manuales. |
 | PATCH | `/api/garments/{id}` | Corrige nombre, categoría, color, formalidad, temporadas y etiquetas. |
 | DELETE | `/api/garments/{id}` | Archiva la prenda (baja lógica). |
-| POST | `/api/garments/{id}/reanalyze` | Reanaliza y devuelve una propuesta sin sobrescribir. |
 | GET | `/api/outfits` | Outfits con sus prendas, favoritos primero. |
-| POST | `/api/outfits` | Crea un outfit manual o guarda una sugerencia (`source=ai`). |
+| POST | `/api/outfits` | Crea un outfit manual o guarda una propuesta del motor de reglas. |
 | PATCH | `/api/outfits/{id}` | Edita nombre, ocasión, favorito o reemplaza las prendas. |
 | DELETE | `/api/outfits/{id}` | Elimina el outfit y sus ítems. |
 | POST | `/api/outfits/suggest` | Sugerencias por `occasion` y `weather`; no persiste. |
 | GET | `/media/{hash}.webp` | Imagen normalizada con caché inmutable. |
 | GET | `/media/{hash}-thumb.webp` | Miniatura de 400 px. |
 
-Los errores usan `ProblemDetails` (RFC 7807) en español. El alta tiene un
-endpoint de compatibilidad (`POST /api/garments`) que analiza y persiste en un
-request, pero la UI usa `analyze` + `confirm`.
+Los errores usan `ProblemDetails` (RFC 7807) en español. El alta es un único
+request multipart con todos los atributos de la prenda.
 
 </details>
 

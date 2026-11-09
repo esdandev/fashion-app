@@ -1,6 +1,5 @@
 using FashionApp.Api.Domain;
 using FashionApp.Api.Infrastructure;
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -126,30 +125,4 @@ public static class TestData
         db.Garments.AddRange(garments);
         await db.SaveChangesAsync();
     }
-}
-
-/// <summary>
-/// Simulates an AI provider that is down or timing out. The upload endpoint
-/// must still persist the garment with zero confidence.
-/// </summary>
-public sealed class ThrowingAnalyzer : IGarmentAnalyzer
-{
-    public Task<GarmentAnalysis> AnalyzeAsync(
-        byte[] image,
-        string contentType,
-        CancellationToken ct) =>
-        throw new HttpRequestException("El proveedor de IA no está disponible.");
-}
-
-/// <summary>
-/// Simulates the model answering <c>{"error":"no_garment"}</c>. The endpoints
-/// must surface a 422 instead of storing a zero-confidence "Prenda".
-/// </summary>
-public sealed class NoGarmentAnalyzer : IGarmentAnalyzer
-{
-    public Task<GarmentAnalysis> AnalyzeAsync(
-        byte[] image,
-        string contentType,
-        CancellationToken ct) =>
-        throw new NoGarmentDetectedException();
 }

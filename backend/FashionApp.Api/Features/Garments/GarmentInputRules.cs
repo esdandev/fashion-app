@@ -1,13 +1,12 @@
 using System.Text.RegularExpressions;
-using FashionApp.Api.Infrastructure.Ai;
+using FashionApp.Api.Domain;
 
 namespace FashionApp.Api.Features.Garments;
 
 /// <summary>
 /// Rejects user input that is outside the product's closed vocabularies and
-/// column bounds. Unlike <see cref="GarmentAnalysisValidator"/>, which repairs a
-/// model answer, form/PATCH input is rejected with a Spanish message so the user
-/// never thinks a tag or season was saved when it was silently dropped.
+/// column bounds. Form/PATCH input is rejected with a Spanish message so the
+/// user never thinks a tag or season was saved when it was silently dropped.
 /// </summary>
 public static partial class GarmentInputRules
 {
@@ -101,6 +100,12 @@ public static partial class GarmentInputRules
 
     public static string[] NormalizeSeasons(IEnumerable<string>? values) =>
         NormalizeVocabulary(values, GarmentVocabulary.Seasons);
+
+    public static GarmentCategory ParseCategory(string? value) =>
+        Enum.TryParse<GarmentCategory>(value?.Trim(), ignoreCase: true, out var category)
+        && Enum.IsDefined(category)
+            ? category
+            : GarmentCategory.Top;
 
     public static string[] NormalizeStyleTags(IEnumerable<string>? values) =>
         NormalizeVocabulary(values, GarmentVocabulary.StyleTags);

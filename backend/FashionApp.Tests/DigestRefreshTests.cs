@@ -196,7 +196,7 @@ public sealed class DigestRefreshTests
             AdminSecret = AdminSecret,
             Token = "app-token"
         };
-        await SeedGarmentWithTags(anonymousFactory, "Camisa lino", ["minimalista"]);
+        await SeedGarmentWithTags(anonymousFactory, "Camisa lino", ["capas"]);
         var anonymousClient = anonymousFactory.CreateClient();
         anonymousClient.DefaultRequestHeaders.Add(AdminSecretHeader, AdminSecret);
 
@@ -212,7 +212,7 @@ public sealed class DigestRefreshTests
             AdminSecret = AdminSecret,
             Token = "app-token"
         };
-        await SeedGarmentWithTags(authorizedFactory, "Camisa lino", ["minimalista"]);
+        await SeedGarmentWithTags(authorizedFactory, "Camisa lino", ["capas"]);
         var authorizedClient = authorizedFactory.CreateClient();
         authorizedClient.DefaultRequestHeaders.Add(AdminSecretHeader, AdminSecret);
         authorizedClient.DefaultRequestHeaders.Add("X-App-Token", "app-token");

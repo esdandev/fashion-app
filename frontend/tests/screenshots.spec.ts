@@ -3,6 +3,7 @@ import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Browser, Page } from '@playwright/test'
+import { findGarmentByName } from './helpers/seed'
 
 /**
  * Manual portfolio captures. They never run in the normal suite or in CI: the
@@ -14,8 +15,8 @@ import type { APIRequestContext, Browser, Page } from '@playwright/test'
  *   CAPTURE=1 pnpm exec playwright test tests/screenshots.spec.ts
  *   # PowerShell: $env:CAPTURE='1'; pnpm exec playwright test tests/screenshots.spec.ts
  *
- * The spec talks to the isolated Playwright backend (`.test-data`, fake AI and
- * fake feeds) to seed a rich wardrobe, one digest and a couple of outfits, then
+ * The spec talks to the isolated Playwright backend (`.test-data` and fake
+ * feeds) to seed a rich wardrobe, one digest and a couple of outfits, then
  * saves three pages in desktop and mobile viewports under `docs/screenshots/`.
  */
 
@@ -75,48 +76,37 @@ async function seedGarment(
   const extension = extname(item.file).toLowerCase()
   const mimeType = extension === '.webp' ? 'image/webp' : 'image/jpeg'
 
-  const analyze = await request.post(`${API_URL}/api/garments/analyze`, {
+  const response = await request.post(`${API_URL}/api/garments`, {
     multipart: {
       file: {
         name: item.file,
         mimeType,
         buffer: readFileSync(join(demoAssetsDir, item.file)),
       },
-    },
-  })
-
-  if (!analyze.ok()) {
-    throw new Error(
-      `No se pudo analizar ${item.file}: ${analyze.status()} ${await analyze.text()}`,
-    )
-  }
-
-  const { contentHash } = (await analyze.json()) as { contentHash: string }
-
-  // Confirm is idempotent by content hash: a second manual run returns the row
-  // stored by the first one instead of creating a duplicate.
-  const confirm = await request.post(`${API_URL}/api/garments/confirm`, {
-    data: {
-      contentHash,
       name: item.name,
-      category: item.category,
+      category: item.category.toLowerCase(),
       colorName: item.colorName,
       colorHex: item.colorHex,
-      seasons: item.seasons,
-      formality: item.formality,
-      styleTags: item.styleTags,
-      confidence: 0.95,
+      seasons: item.seasons.join(','),
+      styleTags: item.styleTags.join(','),
+      formality: String(item.formality),
     },
   })
 
-  if (!confirm.ok()) {
-    throw new Error(
-      `No se pudo confirmar ${item.name}: ${confirm.status()} ${await confirm.text()}`,
-    )
+  if (response.ok()) {
+    const { garment } = (await response.json()) as { garment: { id: string } }
+    return garment.id
   }
 
-  const { garment } = (await confirm.json()) as { garment: { id: string } }
-  return garment.id
+  // A second manual capture run finds the row from the first one (409).
+  if (response.status() === 409) {
+    const existing = await findGarmentByName(request, item.name)
+    if (existing) return existing.id
+  }
+
+  throw new Error(
+    `No se pudo crear ${item.name}: ${response.status()} ${await response.text()}`,
+  )
 }
 
 async function seedWardrobe(

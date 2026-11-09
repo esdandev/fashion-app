@@ -1,7 +1,6 @@
-using FashionApp.Api.Domain;
-using FashionApp.Api.Features.Outfits;
+﻿using FashionApp.Api.Domain;
 
-namespace FashionApp.Api.Infrastructure.Ai;
+namespace FashionApp.Api.Features.Outfits;
 
 /// <summary>
 /// Deterministic fallback used when no AI suggestion survives validation, or
@@ -254,7 +253,7 @@ public sealed class RuleBasedOutfitSuggester : IOutfitSuggester
     {
         var weatherLabel = weather switch
         {
-            "frio" => "frío",
+            "frio" => "fr├¡o",
             "calor" => "calor",
             _ => "templado"
         };

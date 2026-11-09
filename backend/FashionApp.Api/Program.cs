@@ -4,14 +4,14 @@ using FashionApp.Api.Features.Garments;
 using FashionApp.Api.Features.Outfits;
 using FashionApp.Api.Features.Security;
 using FashionApp.Api.Infrastructure;
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Demo;
 using FashionApp.Api.Infrastructure.Feeds;
-using FashionApp.Api.Infrastructure.Quotas;
 using FashionApp.Api.Infrastructure.RateLimiting;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
+// Manual wardrobe flow: images and attributes are user-provided; no external client
+// is registered anywhere in the API.
 EnvFile.Load(AppContext.BaseDirectory, Directory.GetCurrentDirectory());
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,65 +41,18 @@ builder.Services.AddSingleton(sp =>
         configuration["App:Token"] ?? "",
         configuration.GetValue("Demo:Enabled", false));
 });
-builder.Services.AddScoped<IAiQuota, AiQuotaService>();
-builder.Services.AddMemoryCache();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RuleBasedOutfitSuggester>();
+builder.Services.AddSingleton<IOutfitSuggester>(sp =>
+    sp.GetRequiredService<RuleBasedOutfitSuggester>());
 builder.Services.AddScoped<IOutfitSuggestionService, OutfitSuggestionService>();
+builder.Services.AddSingleton<IDigestSummarizer, RuleBasedDigestSummarizer>();
 
 builder.Services.AddSingleton<IImageNormalizer, MagickImageNormalizer>();
 builder.Services.AddSingleton<FileStorage>();
 
-var aiSection = builder.Configuration.GetSection("Ai");
-builder.Services.Configure<AiOptions>(aiSection);
-var aiOptions = aiSection.Get<AiOptions>() ?? new AiOptions();
-var aiProvider = aiOptions.Provider?.Trim() ?? "";
-var usingFakeProvider = aiProvider.Length == 0
-    || aiProvider.Equals("fake", StringComparison.OrdinalIgnoreCase);
-var usingRealProvider = aiProvider.Equals("gemini", StringComparison.OrdinalIgnoreCase)
-    || aiProvider.Equals("opencode", StringComparison.OrdinalIgnoreCase);
-
-if (usingRealProvider)
-{
-    // Fail at startup, not on the first upload: a missing key would otherwise
-    // surface as a silent Confidence = 0 for every garment.
-    if (string.IsNullOrWhiteSpace(aiOptions.ApiKey))
-    {
-        throw new InvalidOperationException(
-            $"Ai:Provider está configurado como '{aiProvider}' pero falta Ai:ApiKey. " +
-            "Define la variable de entorno AI__APIKEY o cambia Ai:Provider a 'fake'.");
-    }
-
-    if (AiApiFamilyResolver.Resolve(aiOptions.Provider, aiOptions.Model)
-        == AiApiFamily.OpenAi)
-    {
-        // OpenCode serves DeepSeek/GLM/Qwen through OpenAI Chat Completions,
-        // not through the Google-compatible endpoint.
-        builder.Services.AddHttpClient<IGarmentAnalyzer, OpenAiGarmentAnalyzer>();
-        builder.Services.AddHttpClient<IOutfitSuggester, OpenAiOutfitSuggester>();
-        builder.Services.AddHttpClient<IDigestSummarizer, OpenAiDigestSummarizer>();
-    }
-    else
-    {
-        builder.Services.AddHttpClient<IGarmentAnalyzer, GeminiGarmentAnalyzer>();
-        builder.Services.AddHttpClient<IOutfitSuggester, GeminiOutfitSuggester>();
-        builder.Services.AddHttpClient<IDigestSummarizer, GeminiDigestSummarizer>();
-    }
-}
-else if (usingFakeProvider)
-{
-    builder.Services.AddSingleton<IGarmentAnalyzer, FakeGarmentAnalyzer>();
-    builder.Services.AddSingleton<IOutfitSuggester, FakeOutfitSuggester>();
-    builder.Services.AddSingleton<IDigestSummarizer, FakeDigestSummarizer>();
-}
-else
-{
-    throw new InvalidOperationException(
-        $"Proveedor de IA desconocido '{aiOptions.Provider}'. Usa 'fake', 'gemini' u 'opencode'.");
-}
-
 // The digest has its own provider switch because feeds are not AI: they can be
-// real RSS even when the summarizer is the fake. Unknown values fail fast.
+// real RSS even when the content is processed locally. Unknown values fail fast.
 var digestProvider = builder.Configuration["Digest:Provider"]?.Trim() ?? "";
 if (digestProvider.Length == 0)
 {
@@ -142,26 +95,11 @@ var app = builder.Build();
 var dataPaths = app.Services.GetRequiredService<DataPaths>();
 var demoEnabled = app.Configuration.GetValue("Demo:Enabled", false);
 
-app.Logger.LogInformation(
-    "IA configurada: provider={Provider}, model={Model}, keyConfigured={KeyConfigured}",
-    aiOptions.Provider,
-    AiRequestTargetFactory.ResolveModel(aiOptions.Provider, aiOptions.Model),
-    !string.IsNullOrWhiteSpace(aiOptions.ApiKey));
-
 StartupChecks.ValidateSecurity(
     app.Environment.EnvironmentName,
     app.Configuration["App:Token"],
     demoEnabled,
     app.Configuration.GetValue(StartupChecks.AllowAnonymousKey, false));
-
-if (app.Environment.IsProduction() && !demoEnabled && usingFakeProvider)
-{
-    // A fake provider in Production saves placeholder attributes for real
-    // photos. It is legitimate for the demo, but never for the personal instance.
-    app.Logger.LogWarning(
-        "Ai:Provider=fake en Production: el análisis de prendas usará datos de ejemplo. " +
-        "Configurá AI__PROVIDER=gemini y AI__APIKEY para análisis real.");
-}
 
 app.UseCors();
 app.UseRateLimiter();
@@ -177,25 +115,8 @@ app.MapGet("/api/config", (IConfiguration configuration) => Results.Ok(new
     demo = configuration.GetValue("Demo:Enabled", false)
 }));
 
-app.MapGet("/api/ai/status", (IConfiguration configuration) => Results.Ok(new
-{
-    provider = configuration["Ai:Provider"] ?? "fake",
-    model = AiRequestTargetFactory.ResolveModel(
-        configuration["Ai:Provider"],
-        configuration["Ai:Model"]),
-    apiFamily = AiApiFamilyResolver.Resolve(
-        configuration["Ai:Provider"],
-        configuration["Ai:Model"]).ToString(),
-    baseUrl = configuration["Ai:BaseUrl"] ?? "",
-    keyConfigured = !string.IsNullOrWhiteSpace(configuration["Ai:ApiKey"]),
-    digestProvider = configuration["Digest:Provider"] ?? "rss"
-})).RequireToken();
-
 app.MapGarmentEndpoints();
 app.MapGarmentUploadEndpoint();
-app.MapGarmentAnalyzeEndpoint();
-app.MapGarmentConfirmEndpoint();
-app.MapGarmentReanalyzeEndpoint();
 app.MapOutfitEndpoints();
 app.MapOutfitSuggestEndpoint();
 app.MapDigestEndpoints();

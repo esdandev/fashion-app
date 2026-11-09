@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using FashionApp.Api.Domain;
 using FashionApp.Api.Features.Digest;
 using FashionApp.Api.Infrastructure;
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Demo;
 using FashionApp.Api.Infrastructure.Feeds;
 using Microsoft.AspNetCore.Hosting;

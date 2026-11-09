@@ -3,9 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using FashionApp.Api.Features.Digest;
-using FashionApp.Api.Infrastructure.Ai;
 using FashionApp.Api.Infrastructure.Feeds;
-using Microsoft.Extensions.Options;
 
 public sealed class DigestIngestTests
 {
@@ -269,110 +267,27 @@ public sealed class DigestIngestTests
         Assert.Empty(await throwing.FetchAsync(new FeedSource("Vogue", "https://feed.test/rss"), default));
     }
 
-    // ---- Summarizers -----------------------------------------------------
+    // ---- Summarizer ------------------------------------------------------
 
     [Fact]
-    public async Task Fake_summarizer_returns_a_fixed_summary_and_one_draft_per_entry()
+    public async Task Rule_based_summarizer_keeps_titles_and_infers_tags()
     {
         var entries = new[]
         {
-            Entry("Primera nota", "https://example.com/1", summary: "Resumen de la primera."),
-            Entry("Segunda nota", "https://example.com/2"),
-            Entry(new string('t', 300), "https://example.com/3")
+            Entry("Tendencias minimalistas", "https://example.com/1",
+                summary: "Lino, algodón y siluetas esenciales."),
+            Entry("Streetwear urbano", "https://example.com/2",
+                summary: "Hoodies, denim y zapatillas.")
         };
 
-        var result = await new FakeDigestSummarizer().SummarizeAsync(entries, default);
+        var result = await new RuleBasedDigestSummarizer()
+            .SummarizeAsync(entries, default);
 
-        Assert.Equal("Resumen de prueba", result.Summary);
-        Assert.Equal(3, result.Items.Count);
-        Assert.Equal("Primera nota", result.Items[0].Title);
-        Assert.Equal(["minimalista", "casual"], result.Items[0].StyleTags);
-        Assert.Equal(["casual"], result.Items[1].StyleTags);
-        Assert.Equal(200, result.Items[2].Title.Length);
-    }
-
-    [Fact]
-    public async Task Gemini_summarizer_parses_summary_and_enriches_items_from_the_feeds()
-    {
-        var published = new DateTimeOffset(2026, 11, 8, 8, 0, 0, TimeSpan.Zero);
-        var entries = new[]
-        {
-            Entry("Nota real", "https://example.com/real", published,
-                summary: "Un resumen de la nota.", imageUrl: "https://example.com/img.jpg", source: "Vogue")
-        };
-        var answer = Answer(
-            "Resumen del día",
-            """{"title":"Nota real","url":"https://example.com/real","summary":"Dos líneas.","styleTags":["minimalista","inventado"]}""",
-            """{"title":"Inventada","url":"https://example.com/falsa","summary":"Otra.","styleTags":["casual"]}""");
-        var summarizer = CreateSummarizer(new StubHttpHandler(Envelope(answer)));
-
-        var result = await summarizer.SummarizeAsync(entries, default);
-
-        Assert.Equal("Resumen del día", result.Summary);
         Assert.Equal(2, result.Items.Count);
-        var item = result.Items[0];
-        Assert.Equal("Nota real", item.Title);
-        Assert.Equal("https://example.com/real", item.Url);
-        Assert.Equal("Vogue", item.Source);
-        Assert.Equal("Dos líneas.", item.Summary);
-        Assert.Equal(["minimalista", "inventado"], item.StyleTags);
-        Assert.Equal("https://example.com/img.jpg", item.ImageUrl);
-        Assert.Equal(published, item.PublishedAt);
-        Assert.Equal("", result.Items[1].Source);
-        Assert.Null(result.Items[1].PublishedAt);
-    }
-
-    [Fact]
-    public async Task Gemini_summarizer_returns_empty_on_malformed_answers_and_transport_errors()
-    {
-        var entries = new[] { Entry("Nota", "https://example.com/real") };
-
-        var notJson = CreateSummarizer(new StubHttpHandler(Envelope("no soy json")));
-        var noItems = CreateSummarizer(new StubHttpHandler(Envelope("""{"summary":"Sin items"}""")));
-        var throwing = CreateSummarizer(new ThrowingHttpHandler());
-
-        Assert.Empty((await notJson.SummarizeAsync(entries, default)).Items);
-        Assert.Empty((await noItems.SummarizeAsync(entries, default)).Items);
-        Assert.Empty((await throwing.SummarizeAsync(entries, default)).Items);
-    }
-
-    [Fact]
-    public async Task Gemini_summarizer_sends_the_expected_payload_and_prompt_entries()
-    {
-        var entries = new[]
-        {
-            Entry("Nota real", "https://example.com/real",
-                new DateTimeOffset(2026, 11, 8, 8, 0, 0, TimeSpan.Zero),
-                summary: "Un resumen de la nota.", source: "Vogue")
-        };
-        var answer = Answer(
-            "Resumen",
-            """{"title":"Nota real","url":"https://example.com/real","summary":"Dos líneas.","styleTags":["casual"]}""");
-        var handler = new CapturingHttpHandler(answer);
-        var summarizer = CreateSummarizer(handler);
-
-        await summarizer.SummarizeAsync(entries, default);
-
-        Assert.NotNull(handler.Body);
-        using var payload = JsonDocument.Parse(handler.Body!);
-        var root = payload.RootElement;
-        var generationConfig = root.GetProperty("generationConfig");
-        Assert.Equal("application/json", generationConfig.GetProperty("responseMimeType").GetString());
-        Assert.Equal(0.3, generationConfig.GetProperty("temperature").GetDouble());
-
-        var prompt = root
-            .GetProperty("contents")[0]
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
-        Assert.NotNull(prompt);
-        Assert.Contains("https://example.com/real", prompt);
-        Assert.Contains("Vogue", prompt);
-        Assert.Contains("Un resumen de la nota.", prompt);
-
-        Assert.NotNull(handler.RequestUri);
-        Assert.Contains("gemini-3.8-flash", handler.RequestUri!.ToString());
-        Assert.Contains("key=test", handler.RequestUri.ToString());
+        Assert.Equal("Tendencias minimalistas", result.Items[0].Title);
+        Assert.Contains("minimalista", result.Items[0].StyleTags);
+        Assert.Contains("streetwear", result.Items[1].StyleTags);
+        Assert.Contains("2 novedades", result.Summary);
     }
 
     // ---- Helpers ---------------------------------------------------------
@@ -388,48 +303,6 @@ public sealed class DigestIngestTests
 
     private static HttpFeedFetcher CreateFetcher(string body) =>
         new(new HttpClient(new StubHttpHandler(body)));
-
-    private static GeminiDigestSummarizer CreateSummarizer(HttpMessageHandler handler) =>
-        new(new HttpClient(handler), Options.Create(new AiOptions { ApiKey = "test" }));
-
-    private static string Answer(string? summary, params string[] items)
-    {
-        var payload = new
-        {
-            summary,
-            items = items.Select(item => JsonSerializer.Deserialize<JsonElement>(item)).ToArray()
-        };
-        return JsonSerializer.Serialize(payload);
-    }
-
-    private static string Envelope(string answer) => JsonSerializer.Serialize(new
-    {
-        candidates = new[]
-        {
-            new { content = new { parts = new[] { new { text = answer } } } }
-        }
-    });
-
-    private sealed class CapturingHttpHandler(string answer) : HttpMessageHandler
-    {
-        public string? Body { get; private set; }
-        public Uri? RequestUri { get; private set; }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Body = request.Content is null
-                ? null
-                : await request.Content.ReadAsStringAsync(cancellationToken);
-            RequestUri = request.RequestUri;
-
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(Envelope(answer), Encoding.UTF8, "application/json")
-            };
-        }
-    }
 
     private sealed class BytesHttpHandler(byte[] body) : HttpMessageHandler
     {
