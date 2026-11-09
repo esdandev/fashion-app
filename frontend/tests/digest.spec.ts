@@ -70,7 +70,7 @@ test('muestra el resumen del día y lo relaciona con una prenda', async ({
   const notes = page.getByRole('list', { name: 'Novedades del día' })
   const externalLink = notes.getByRole('link').first()
   await expect(externalLink).toHaveAttribute('target', '_blank')
-  await expect(externalLink).toHaveAttribute('href', /nota-/)
+  await expect(externalLink).toHaveAttribute('href', /^https:\/\/www\.(vogue|elle|harpersbazaar|glamour|gq)\.com\//)
 
   // The first note carries the "capas" tag, so the seeded garment must appear
   // in its related garments section.

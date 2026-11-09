@@ -145,6 +145,10 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 
+    // Repair placeholder links from older demo seeds even when the instance is
+    // personal: example.com URLs never come from real feeds.
+    await DemoSeeder.RepairLegacyDemoLinksAsync(db, CancellationToken.None);
+
     if (demoEnabled)
     {
         await DemoSeeder.EnsureOnlyDemoDataAsync(db);

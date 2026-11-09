@@ -137,14 +137,45 @@ public sealed class DigestIngestTests
         Assert.Equal(8, entries.Count);
         Assert.All(entries, entry =>
         {
-            Assert.StartsWith("https://example.com/nota-", entry.Url);
+            Assert.StartsWith("https://", entry.Url);
             Assert.False(string.IsNullOrWhiteSpace(entry.Title));
             Assert.False(string.IsNullOrWhiteSpace(entry.Source));
             Assert.NotNull(entry.PublishedAt);
         });
         Assert.Equal(
-            Enumerable.Range(1, 8).Select(i => $"https://example.com/nota-{i}"),
+            DemoFeedNotes.All.Select(note => note.Url),
             entries.Select(entry => entry.Url));
+        Assert.DoesNotContain(entries, entry => entry.Url.Contains("example.com"));
+    }
+
+    [Fact]
+    public async Task Http_feed_fetcher_resolves_relative_links_against_the_feed_url()
+    {
+        const string rss = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <rss version="2.0">
+              <channel>
+                <title>Vogue</title>
+                <link>https://www.vogue.com/feed</link>
+                <item>
+                  <title>Nota relativa</title>
+                  <link>/fashion/nota-relativa</link>
+                </item>
+                <item>
+                  <title>Nota inválida</title>
+                  <link>javascript:alert(1)</link>
+                </item>
+              </channel>
+            </rss>
+            """;
+        var fetcher = CreateFetcher(rss);
+
+        var entries = await fetcher.FetchAsync(
+            new FeedSource("Vogue", "https://www.vogue.com/feed"),
+            default);
+
+        var entry = Assert.Single(entries);
+        Assert.Equal("https://www.vogue.com/fashion/nota-relativa", entry.Url);
     }
 
     [Fact]

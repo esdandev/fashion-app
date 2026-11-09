@@ -93,6 +93,47 @@ public sealed class DemoDigestTests
         Assert.InRange(await db.DigestItems.CountAsync(item => item.DigestId == digest.Id), 6, 8);
     }
 
+    [Fact]
+    public async Task Demo_seed_repairs_legacy_example_com_links()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "fashion-tests",
+            Guid.NewGuid().ToString("N"));
+        var uploads = Path.Combine(root, "uploads");
+        Directory.CreateDirectory(uploads);
+
+        await using var db = TestDb.Create(Path.Combine(root, "demo.db"));
+        var now = DateTimeOffset.UtcNow;
+        var digest = new Digest
+        {
+            Id = Guid.NewGuid(),
+            Date = DateOnly.FromDateTime(now.UtcDateTime),
+            Summary = "Digest viejo",
+            GeneratedAt = now
+        };
+        digest.Items.Add(new DigestItem
+        {
+            Id = Guid.NewGuid(),
+            DigestId = digest.Id,
+            Title = DemoFeedNotes.All[0].Title,
+            Url = "https://example.com/nota-1",
+            Source = "Vogue",
+            Summary = "Resumen viejo.",
+            StyleTagsJson = "[]",
+            PublishedAt = now,
+            SortOrder = 0
+        });
+        db.Digests.Add(digest);
+        await db.SaveChangesAsync();
+
+        await DemoSeeder.SeedAsync(db, uploads);
+
+        var item = Assert.Single(await db.DigestItems.ToListAsync());
+        Assert.Equal(DemoFeedNotes.All[0].Url, item.Url);
+        Assert.DoesNotContain("example.com", item.Url);
+    }
+
     private sealed class CountingFeedFetcher : IFeedFetcher
     {
         public int Calls { get; private set; }

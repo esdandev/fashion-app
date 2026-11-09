@@ -69,7 +69,7 @@ public sealed class HttpFeedFetcher : IFeedFetcher
             var entries = new List<FeedEntry>(MaxItemsPerFeed);
             foreach (var item in feed.Items.Take(MaxItemsPerFeed))
             {
-                var url = item.Links
+                var rawUrl = item.Links
                     // An enclosure is usually an image, not the article URL.
                     .Where(link => !string.Equals(
                         link.RelationshipType,
@@ -77,12 +77,18 @@ public sealed class HttpFeedFetcher : IFeedFetcher
                         StringComparison.OrdinalIgnoreCase))
                     .Select(link => link.Uri?.ToString())
                     .FirstOrDefault(link => !string.IsNullOrWhiteSpace(link));
-                if (string.IsNullOrWhiteSpace(url))
+                if (string.IsNullOrWhiteSpace(rawUrl))
+                    continue;
+
+                // Some feeds publish relative links. Resolve them against the
+                // feed URL instead of persisting a URL that leads nowhere.
+                var url = ResolveWebUrl(rawUrl, source.Url);
+                if (url is null)
                     continue;
 
                 entries.Add(new FeedEntry(
                     Title: CleanText(item.Title?.Text, int.MaxValue) ?? "(sin título)",
-                    Url: url.Trim(),
+                    Url: url,
                     Source: string.IsNullOrWhiteSpace(source.Name) ? "Feed" : source.Name.Trim(),
                     PublishedAt: PublishedAt(item),
                     Summary: CleanText(item.Summary?.Text, MaxSummaryLength)
@@ -112,6 +118,27 @@ public sealed class HttpFeedFetcher : IFeedFetcher
         return item.LastUpdatedTime > DateTimeOffset.MinValue
             ? item.LastUpdatedTime
             : null;
+    }
+
+    /// <summary>
+    /// Returns an absolute http(s) URL, resolving relative links against the
+    /// feed address. Anything else is dropped: the digest only renders links
+    /// that a browser can actually open.
+    /// </summary>
+    private static string? ResolveWebUrl(string value, string feedUrl)
+    {
+        if (!Uri.TryCreate(value.Trim(), UriKind.RelativeOrAbsolute, out var uri))
+            return null;
+
+        if (!uri.IsAbsoluteUri)
+        {
+            if (!Uri.TryCreate(feedUrl, UriKind.Absolute, out var baseUri))
+                return null;
+
+            uri = new Uri(baseUri, uri);
+        }
+
+        return uri.Scheme is "http" or "https" ? uri.ToString() : null;
     }
 
     /// <summary>

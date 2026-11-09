@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FashionApp.Api.Domain;
+using FashionApp.Api.Infrastructure.Feeds;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,6 +41,7 @@ public static class DemoSeeder
     {
         await SeedWardrobeAsync(db, uploadsRoot, ct);
         await SeedDigestAsync(db, ct);
+        await RepairLegacyDemoLinksAsync(db, ct);
     }
 
     private static async Task SeedWardrobeAsync(
@@ -121,9 +123,9 @@ public static class DemoSeeder
             GeneratedAt = now
         };
 
-        for (var index = 0; index < SampleDigestItems.Length; index++)
+        for (var index = 0; index < DemoFeedNotes.All.Count; index++)
         {
-            var item = SampleDigestItems[index];
+            var item = DemoFeedNotes.All[index];
             digest.Items.Add(new DigestItem
             {
                 Id = Guid.NewGuid(),
@@ -143,34 +145,34 @@ public static class DemoSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static readonly (string Title, string Url, string Source, string Summary, string[] StyleTags)[]
-        SampleDigestItems =
-        [
-            ("Tendencias de otoño: capas y texturas", "https://example.com/nota-1", "Vogue",
-                "Las claves de la temporada, de los abrigos largos a los tejidos cálidos.",
-                ["capas", "texturado"]),
-            ("Cómo combinar denim en clave minimalista", "https://example.com/nota-2", "Elle",
-                "Tres fórmulas simples para usar jean todo el año sin recargar el look.",
-                ["minimalista", "casual"]),
-            ("Los accesorios que ordenan un outfit", "https://example.com/nota-3", "Harper's Bazaar",
-                "Cinturones, bolsos y joyería para dar intención a lo básico.",
-                ["clasico", "entallado"]),
-            ("Calzado cómodo para la ciudad", "https://example.com/nota-4", "Glamour",
-                "Zapatillas y botas que acompañan jornadas largas sin perder estilo.",
-                ["casual", "deportivo"]),
-            ("Paleta neutra: beige, gris y blanco", "https://example.com/nota-5", "Vogue",
-                "Una guía para construir un guardarropa monocromático que siempre funciona.",
-                ["monocromatico", "minimalista"]),
-            ("El regreso del traje oversized", "https://example.com/nota-6", "GQ",
-                "Siluetas amplias y sastrería relajada para el trabajo y el fin de semana.",
-                ["formal", "oversized"]),
-            ("Texturas de invierno sin perder liviandad", "https://example.com/nota-7", "Elle",
-                "Lana, seda y punto para sumar abrigo sin volumen innecesario.",
-                ["texturado", "clasico"]),
-            ("Looks de fin de semana en tres pasos", "https://example.com/nota-8", "Harper's Bazaar",
-                "Prendas versátiles para pasar del desayuno a una salida nocturna.",
-                ["casual", "romantico"])
-        ];
+    /// <summary>
+    /// Older demo databases were seeded with placeholder <c>example.com</c>
+    /// links. Rewrite them to the current real section URLs so a click never
+    /// lands on a missing page, even without resetting the demo volume. It runs
+    /// in every mode: real feeds never publish <c>example.com</c> links.
+    /// </summary>
+    public static async Task RepairLegacyDemoLinksAsync(
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var items = await db.DigestItems
+            .Where(item => item.Url.StartsWith("https://example.com/"))
+            .ToListAsync(ct);
+        if (items.Count == 0)
+            return;
+
+        var byTitle = DemoFeedNotes.All.ToDictionary(
+            note => note.Title,
+            StringComparer.Ordinal);
+
+        foreach (var item in items)
+        {
+            if (byTitle.TryGetValue(item.Title, out var note))
+                item.Url = note.Url;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
 
     /// <summary>
     /// Refuses to start a demo that points at a database with rows outside the
