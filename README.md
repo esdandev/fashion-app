@@ -166,8 +166,10 @@ pnpm exec playwright test
 ```
 
 Playwright usa `.test-data` (SQLite + uploads) y lo borra al inicio de cada
-run; nunca toca `data/`. La API de test corre con IA y feeds fake, sin token y
-con `Demo__Enabled=false`. Los specs cubren:
+run; nunca toca `data/`. Antes de correrlo, **detené cualquier backend o Vite
+propio en los puertos 5210/5173**: el runner no reutiliza servidores existentes
+(`reuseExistingServer: false`) para no mutar datos reales. La API de test corre
+con IA y feeds fake, sin token y con `Demo__Enabled=false`. Los specs cubren:
 
 - **Guardarropa:** subir foto, confirmar, editar, ver la prenda, spinner,
   reanálisis, cancelación, rechazo de archivos > 10 MB y demo de solo lectura.
@@ -182,8 +184,18 @@ cd frontend
 CAPTURE=1 pnpm exec playwright test tests/screenshots.spec.ts
 ```
 
-Escribe seis PNG en `docs/screenshots/` (desktop 1440×900 y mobile 390×844 para
-Hoy, Guardarropa y Outfits). Sin `CAPTURE=1` el spec se salta.
+```powershell
+# PowerShell
+cd frontend
+$env:CAPTURE='1'
+pnpm exec playwright test tests/screenshots.spec.ts
+```
+
+Escribe seis PNG en `docs/screenshots/`: viewport desktop 1440×900 y mobile
+390×844, con el PNG mobile a 2× (780×1688). La portada **Hoy** usa un viewport
+más alto —1440×1100 desktop y 390×1050 mobile (PNG 780×2100)— para que se vea
+completa la tira «En tu guardarropa»; el resto de las capturas conserva el
+viewport estándar. Sin `CAPTURE=1` el spec se salta.
 
 ## Variables de entorno
 
@@ -215,7 +227,7 @@ Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
 | `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes. |
 | `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS en desarrollo. |
 | `VITE_API_URL` | `http://localhost:5210` | URL de la API usada en build/dev del front (`/` dentro del contenedor). |
-| `ASPNETCORE_ENVIRONMENT` | `Development` | `Production` activa las validaciones de seguridad del contenedor. |
+| `ASPNETCORE_ENVIRONMENT` | `Production` (framework) | `Development` habilita datos locales; el perfil `dotnet run` lo setea solo. `Production` activa las validaciones de seguridad del contenedor. |
 
 `APP__TOKEN` no es autenticación real: es un secreto compartido para una
 instancia personal y así queda documentado.
@@ -271,29 +283,42 @@ guardarropa y los outfits se cargan bajo demanda.
 
 ### Lighthouse móvil
 
-Medición local sobre el build de producción real: `pnpm build`, copia de
-`dist/` a `wwwroot/`, `dotnet publish -c Release` y la app publicada en
-`Production` con la demo sembrada. Lighthouse 13.6, preset móvil por defecto
-(red y CPU simuladas), tres corridas sobre `/`:
+Medición local sobre el build de producción real: `pnpm build`,
+`dotnet publish -c Release` y **después** copia de `dist/` al `wwwroot` del
+publish; la app publicada corre en `Production` con la demo sembrada.
+Lighthouse 13.6.0, preset móvil por defecto (red y CPU simuladas), tres
+corridas sobre `/`. El comando exacto, el hardware y los flags están en
+[docs/metrics/README.md](docs/metrics/README.md); los JSON crudos de las tres
+corridas quedan versionados en `docs/metrics/`.
 
 | Métrica | Mediana | Rango de las 3 corridas | Presupuesto |
 |---|---|---|---|
-| Performance score | 93 | 89–95 | — |
-| LCP | 3,22 s | 2,90–3,22 s | < 2,5 s |
-| TBT (proxy de laboratorio de INP) | 54 ms | 51–58 ms | — |
-| CLS | 0,060 | 0,060–0,119 | < 0,1 |
-| Speed Index | 1,64 s | 1,56–1,64 s | — |
-| FCP | 0,96 s | 0,96 s | — |
+| Performance score | 93 | 93–93 | — |
+| LCP | 3,21 s | 3,14–3,22 s | < 2,5 s |
+| TBT (proxy de laboratorio de INP) | 53 ms | 42–55 ms | — |
+| CLS | 0,060 | 0,060–0,060 | < 0,1 |
+| Speed Index | 1,59 s | 1,56–1,62 s | — |
+| FCP | 0,96 s | 0,90–0,96 s | — |
 
 - **INP no se midió**: es una métrica de campo (requiere interacción real). En
   laboratorio se reporta **TBT** como proxy; no se inventa un valor de INP.
-- **El LCP quedó por encima del presupuesto de 2,5 s** en este entorno. El
-  elemento LCP es el subtítulo de la portada renderizado después de la consulta
-  del digest; FCP es 0,96 s y la diferencia es trabajo de JS bajo throttling
-  móvil simulado. No se cambió código de performance en esta fase.
-- El **CLS** varió entre corridas; la peor fue 0,119 y la mediana 0,060.
+- **El LCP quedó por encima del presupuesto de 2,5 s** en este entorno. Los
+  JSON de Lighthouse identifican el subtítulo de la portada como elemento LCP
+  en las tres corridas. El *breakdown* observado (TTFB 9–21 ms y render delay
+  433–460 ms) no explica por sí solo el LCP simulado de 3,1–3,2 s: la causa
+  (hero renderizado por el cliente después de la consulta del digest / trabajo
+  de JS bajo throttling simulado) queda como **hipótesis a validar**, no como
+  un hecho medido.
+- El **CLS** dio 0,060 en las tres corridas de esta medición.
 - Los números dependen de hardware, red y carga de la máquina. No son una
   medición de campo ni de usuarios reales.
+
+### Seguimiento
+
+El LCP fuera de presupuesto tiene una tarea de seguimiento abierta en
+[docs/perf-followup.md](docs/perf-followup.md): precargar/renderizar el hero de
+Hoy antes y estabilizar su altura, con una medición antes/después usando el
+mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4.
 
 ## Límites conocidos
 
@@ -315,7 +340,8 @@ Medición local sobre el build de producción real: `pnpm build`, copia de
   escalado horizontal; el volumen vive en una región y el deploy reinicia la
   Machine.
 - **Métricas de laboratorio.** INP no está medido y el LCP local supera el
-  presupuesto; Lighthouse no reemplaza una medición de campo.
+  presupuesto; Lighthouse no reemplaza una medición de campo. El seguimiento
+  está en [docs/perf-followup.md](docs/perf-followup.md).
 - **CI sin remoto acá.** El workflow de GitHub Actions está versionado, pero
   este clon no tiene remoto configurado: los jobs corren cuando el repo se
   publique en GitHub.
@@ -338,6 +364,8 @@ Medición local sobre el build de producción real: `pnpm build`, copia de
 ├── docs/
 │   ├── architecture.md          diagramas y decisiones técnicas
 │   ├── deploy.md                handoff de Fly.io
+│   ├── metrics/                 JSON de Lighthouse y entorno de medición
+│   ├── perf-followup.md         tarea abierta de performance del hero de Hoy
 │   ├── plan-fase-*.md           planes de implementación
 │   ├── Fashion App.md           spec y bitácora
 │   └── screenshots/             capturas desktop y mobile
@@ -384,4 +412,6 @@ request, pero la UI usa `analyze` + `confirm`.
 - Spec y bitácora: [docs/Fashion App.md](docs/Fashion%20App.md)
 - Arquitectura: [docs/architecture.md](docs/architecture.md)
 - Deploy en Fly.io: [docs/deploy.md](docs/deploy.md)
+- Métricas de Lighthouse: [docs/metrics/README.md](docs/metrics/README.md)
+- Seguimiento de performance: [docs/perf-followup.md](docs/perf-followup.md)
 - Plan de la Fase 4: [docs/plan-fase-4.md](docs/plan-fase-4.md)

@@ -12,6 +12,7 @@ import type { APIRequestContext, Browser, Page } from '@playwright/test'
  * Usage (from `frontend/`):
  *
  *   CAPTURE=1 pnpm exec playwright test tests/screenshots.spec.ts
+ *   # PowerShell: $env:CAPTURE='1'; pnpm exec playwright test tests/screenshots.spec.ts
  *
  * The spec talks to the isolated Playwright backend (`.test-data`, fake AI and
  * fake feeds) to seed a rich wardrobe, one digest and a couple of outfits, then
@@ -30,6 +31,7 @@ const demoAssetsDir = join(
   'Demo',
   'SeedAssets',
 )
+const manifestPath = join(demoAssetsDir, 'manifest.json')
 
 interface ManifestItem {
   name: string
@@ -50,10 +52,13 @@ interface Manifest {
  * Reuses the demo manifest (names, colors, seasons, tags and placeholder WebP
  * images) instead of duplicating fifteen fixtures in the spec. The UI then
  * looks like the deployed demo, which is exactly what the portfolio needs.
+ *
+ * The file is read inside the test, not at module load: if the manifest moves,
+ * the skipped spec must not break collection of the rest of the suite.
  */
-const manifest = JSON.parse(
-  readFileSync(join(demoAssetsDir, 'manifest.json'), 'utf8'),
-) as Manifest
+function loadManifest(): Manifest {
+  return JSON.parse(readFileSync(manifestPath, 'utf8')) as Manifest
+}
 
 async function seedGarment(
   request: APIRequestContext,
@@ -109,6 +114,7 @@ async function seedGarment(
 async function seedWardrobe(
   request: APIRequestContext,
 ): Promise<Map<string, string>> {
+  const manifest = loadManifest()
   const ids = new Map<string, string>()
   for (const item of manifest.items) {
     ids.set(item.file, await seedGarment(request, item))
@@ -213,10 +219,24 @@ async function waitForImages(page: Page) {
   })
 }
 
-const CAPTURES = [
+interface Capture {
+  name: string
+  path: string
+  /**
+   * Hoy needs more vertical room so the "En tu guardarropa" strip of the first
+   * card is not clipped. The other pages keep the standard viewport.
+   */
+  desktopHeight?: number
+  mobileHeight?: number
+  ready: (page: Page) => Promise<void>
+}
+
+const CAPTURES: Capture[] = [
   {
     name: 'hoy',
     path: '/',
+    desktopHeight: 1100,
+    mobileHeight: 1050,
     ready: (page: Page) =>
       expect(page.getByRole('heading', { name: 'Hoy' })).toBeVisible(),
   },
@@ -232,7 +252,7 @@ const CAPTURES = [
     ready: (page: Page) =>
       expect(page.getByText(/outfits guardados/)).toBeVisible(),
   },
-] as const
+]
 
 const VIEWPORTS = [
   {
@@ -265,6 +285,11 @@ async function captureAll(browser: Browser) {
     const page = await context.newPage()
 
     for (const capture of CAPTURES) {
+      const height =
+        viewport.suffix === 'desktop'
+          ? (capture.desktopHeight ?? viewport.viewport.height)
+          : (capture.mobileHeight ?? viewport.viewport.height)
+      await page.setViewportSize({ width: viewport.viewport.width, height })
       await page.goto(capture.path)
       await capture.ready(page)
       await page.waitForLoadState('networkidle')
