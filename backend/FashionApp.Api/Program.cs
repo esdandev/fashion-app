@@ -12,6 +12,8 @@ using FashionApp.Api.Infrastructure.RateLimiting;
 using FashionApp.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 
+EnvFile.Load(AppContext.BaseDirectory, Directory.GetCurrentDirectory());
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>

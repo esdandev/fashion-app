@@ -149,8 +149,15 @@ dotnet run --project backend/FashionApp.Api
 ```
 
   La clave sola no activa Gemini: si `AI__PROVIDER` queda en `fake`, la app
-  sigue respondiendo datos de ejemplo. ASP.NET no lee archivos `.env`; usá
-  variables de entorno o `dotnet user-secrets`.
+  sigue respondiendo datos de ejemplo. La app lee automáticamente un archivo
+  `.env` en la raíz del repo (o hasta cinco carpetas arriba) al arrancar; las
+  variables reales del entorno tienen prioridad. La forma más simple:
+
+```powershell
+Copy-Item .env.example .env
+# editá .env con AI__PROVIDER=opencode y AI__APIKEY=...
+dotnet run --project backend/FashionApp.Api
+```
 - Verificá la configuración activa con `GET /api/ai/status` (si definiste
   `APP__TOKEN`, mandá `X-App-Token`). Debe responder `provider: "gemini"` y
   `keyConfigured: true`.
