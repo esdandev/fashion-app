@@ -144,8 +144,6 @@ if (app.Environment.IsProduction() && !demoEnabled && usingFakeProvider)
 app.UseCors();
 app.UseRateLimiter();
 
-app.MapGet("/", () => "Hello World!");
-
 app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "ok",
@@ -179,6 +177,9 @@ app.MapGet("/media/{fileName}", (string fileName, HttpContext ctx, DataPaths pat
     ctx.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
     return Results.File(path, "image/webp", enableRangeProcessing: true);
 });
+
+// Single origin in production: the API serves the compiled SPA from wwwroot.
+app.UseSpa();
 
 using (var scope = app.Services.CreateScope())
 {

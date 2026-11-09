@@ -13,5 +13,8 @@ dist/
 data/
 .test-data/
 
+# SPA compilada por el build de Docker (no se commitea)
+wwwroot/
+
 # Superpowers
 .superpowers/
