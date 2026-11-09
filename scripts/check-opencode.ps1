@@ -1,6 +1,14 @@
 param(
     [string]$ApiKey = $env:AI__APIKEY,
-    [string]$Model = $(if ($env:AI__MODEL) { $env:AI__MODEL } else { 'gemini-4-argon' }),
+    [ValidateSet('gemini', 'openai')]
+    [string]$Family = 'gemini',
+    [string]$Model = $(if ($env:AI__MODEL) {
+        $env:AI__MODEL
+    } elseif ($Family -eq 'openai') {
+        'deepseek-v4.1-flash'
+    } else {
+        'gemini-4-argon'
+    }),
     [switch]$ListModels
 )
 
@@ -28,14 +36,25 @@ if ($ListModels) {
     }
 }
 
-$uri = "https://opencode.ai/inference/google/v1beta/models/${Model}:generateContent"
-$payload = @{
-    contents = @(
-        @{ parts = @(@{ text = 'Respondé solamente: OK' }) }
-    )
-} | ConvertTo-Json -Depth 8
+if ($Family -eq 'openai') {
+    $uri = 'https://opencode.ai/inference/openai/v1/chat/completions'
+    $payload = @{
+        model = $Model
+        messages = @(
+            @{ role = 'user'; content = 'Respondé solamente: OK' }
+        )
+    } | ConvertTo-Json -Depth 8
+}
+else {
+    $uri = "https://opencode.ai/inference/google/v1beta/models/${Model}:generateContent"
+    $payload = @{
+        contents = @(
+            @{ parts = @(@{ text = 'Respondé solamente: OK' }) }
+        )
+    } | ConvertTo-Json -Depth 8
+}
 
-Write-Host "Probando OpenCode con el modelo '$Model'..." -ForegroundColor Cyan
+Write-Host "Probando OpenCode ($Family) con el modelo '$Model'..." -ForegroundColor Cyan
 try {
     $response = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
         -ContentType 'application/json' -Body $payload -TimeoutSec 30

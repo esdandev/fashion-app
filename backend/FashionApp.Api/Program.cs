@@ -70,9 +70,21 @@ if (usingRealProvider)
             "Define la variable de entorno AI__APIKEY o cambia Ai:Provider a 'fake'.");
     }
 
-    builder.Services.AddHttpClient<IGarmentAnalyzer, GeminiGarmentAnalyzer>();
-    builder.Services.AddHttpClient<IOutfitSuggester, GeminiOutfitSuggester>();
-    builder.Services.AddHttpClient<IDigestSummarizer, GeminiDigestSummarizer>();
+    if (AiApiFamilyResolver.Resolve(aiOptions.Provider, aiOptions.Model)
+        == AiApiFamily.OpenAi)
+    {
+        // OpenCode serves DeepSeek/GLM/Qwen through OpenAI Chat Completions,
+        // not through the Google-compatible endpoint.
+        builder.Services.AddHttpClient<IGarmentAnalyzer, OpenAiGarmentAnalyzer>();
+        builder.Services.AddHttpClient<IOutfitSuggester, OpenAiOutfitSuggester>();
+        builder.Services.AddHttpClient<IDigestSummarizer, OpenAiDigestSummarizer>();
+    }
+    else
+    {
+        builder.Services.AddHttpClient<IGarmentAnalyzer, GeminiGarmentAnalyzer>();
+        builder.Services.AddHttpClient<IOutfitSuggester, GeminiOutfitSuggester>();
+        builder.Services.AddHttpClient<IDigestSummarizer, GeminiDigestSummarizer>();
+    }
 }
 else if (usingFakeProvider)
 {
@@ -171,6 +183,9 @@ app.MapGet("/api/ai/status", (IConfiguration configuration) => Results.Ok(new
     model = AiRequestTargetFactory.ResolveModel(
         configuration["Ai:Provider"],
         configuration["Ai:Model"]),
+    apiFamily = AiApiFamilyResolver.Resolve(
+        configuration["Ai:Provider"],
+        configuration["Ai:Model"]).ToString(),
     baseUrl = configuration["Ai:BaseUrl"] ?? "",
     keyConfigured = !string.IsNullOrWhiteSpace(configuration["Ai:ApiKey"]),
     digestProvider = configuration["Digest:Provider"] ?? "rss"

@@ -467,3 +467,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-09 | Corregido el modelo Gemini por defecto a `gemini-3.8-flash` (2.0 quedó retirado) y agregado diagnóstico de IA: log del error real del proveedor, `GET /api/ai/status` y `scripts/check-gemini.ps1`. |
 | 2026-11-09 | Agregado OpenCode Console como proveedor de IA (`AI__PROVIDER=opencode`): usa `https://opencode.ai/inference/google/v1beta/...` con bearer y `gemini-4-argon` por defecto; scripts `check-opencode` y documentación de la API key. |
 | 2026-11-09 | El backend carga automáticamente un archivo `.env` local (sin pisar variables reales); `.env.example` documenta `AI__PROVIDER`, `AI__APIKEY` y `AI__MODEL`. |
+| 2026-11-09 | Agregado adaptador OpenAI Chat Completions: con `AI__PROVIDER=opencode` y un modelo no-Gemini (DeepSeek V4.1 Flash, GLM, Qwen) usa `/openai/v1/chat/completions`, envía la imagen como data URL y expone `apiFamily` en `/api/ai/status`. |

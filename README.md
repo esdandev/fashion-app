@@ -192,6 +192,23 @@ dotnet run --project backend/FashionApp.Api
   Si devuelve `Account.InsufficientFunds`, la clave es válida pero la cuenta no
   tiene saldo/Go para ese modelo: cargá crédito en OpenCode Console o cambiá a
   `AI__PROVIDER=gemini` con una clave de Google AI Studio.
+- **DeepSeek V4.1 Flash.** Es multimodal y usa OpenAI Chat Completions; la app
+  detecta la familia automáticamente por el nombre del modelo:
+
+```env
+AI__PROVIDER=opencode
+AI__APIKEY='<personal-api-key-de-opencode>'
+AI__MODEL=deepseek-v4.1-flash
+```
+
+  `GET /api/ai/status` debe mostrar `"apiFamily":"OpenAi"`. Es un modelo pago
+  ($0.30/$1.20 por 1M de tokens); si devuelve `Account.InsufficientFunds`,
+  cargá saldo/Go en Console. `deepseek-v4.1-flash-free` solo funciona dentro de
+  OpenCode, no desde la app. Verificá con:
+
+```powershell
+.\scripts\check-opencode.ps1 -Family openai -Model deepseek-v4.1-flash
+```
 - En `Development`, `Digest__Provider=fake` devuelve ocho notas de ejemplo;
   para feeds reales usá `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`.
 

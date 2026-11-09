@@ -98,7 +98,7 @@ public sealed class GeminiDigestSummarizer : IDigestSummarizer
         }
     }
 
-    private static string BuildEntriesJson(IReadOnlyList<FeedEntry> entries)
+    internal static string BuildEntriesJson(IReadOnlyList<FeedEntry> entries)
     {
         var payload = entries
             .Take(MaxPromptEntries)
@@ -145,7 +145,7 @@ public sealed class GeminiDigestSummarizer : IDigestSummarizer
     /// URL, never from the model. Unknown URLs are kept as drafts so the
     /// validator can drop them explicitly.
     /// </summary>
-    private static DigestSummary ParseSummary(
+    internal static DigestSummary ParseSummary(
         string answer,
         IReadOnlyList<FeedEntry> entries)
     {

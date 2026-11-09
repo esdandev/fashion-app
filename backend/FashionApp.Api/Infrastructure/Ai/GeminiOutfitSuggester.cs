@@ -49,7 +49,7 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
                     {
                         parts = new object[]
                         {
-                            new { text = BuildPrompt(context) }
+                            new { text = BuildPrompt(_prompt, context) }
                         }
                     }
                 },
@@ -92,7 +92,7 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
         }
     }
 
-    private string BuildPrompt(OutfitSuggestionContext context)
+    internal static string BuildPrompt(string prompt, OutfitSuggestionContext context)
     {
         var wardrobe = (context.Wardrobe ?? [])
             .Select(garment => new
@@ -110,7 +110,7 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
             ? "(sin preferencia)"
             : context.Occasion.Trim();
 
-        return _prompt
+        return prompt
             .Replace("{{OCCASION}}", occasion, StringComparison.Ordinal)
             .Replace("{{WEATHER}}", context.Weather, StringComparison.Ordinal)
             .Replace("{{WARDROBE}}", wardrobeJson, StringComparison.Ordinal);
@@ -141,7 +141,7 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
             .GetString();
     }
 
-    private static IReadOnlyList<OutfitDraft> ParseDrafts(
+    internal static IReadOnlyList<OutfitDraft> ParseDrafts(
         string answer,
         OutfitSuggestionContext context)
     {

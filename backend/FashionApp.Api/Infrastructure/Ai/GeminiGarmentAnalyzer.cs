@@ -178,7 +178,7 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
             .GetString();
     }
 
-    private static GarmentAnalysis? ParseAnalysis(string text)
+    internal static GarmentAnalysis? ParseAnalysis(string text)
     {
         try
         {
