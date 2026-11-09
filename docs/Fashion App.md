@@ -468,3 +468,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-09 | Agregado OpenCode Console como proveedor de IA (`AI__PROVIDER=opencode`): usa `https://opencode.ai/inference/google/v1beta/...` con bearer y `gemini-4-argon` por defecto; scripts `check-opencode` y documentación de la API key. |
 | 2026-11-09 | El backend carga automáticamente un archivo `.env` local (sin pisar variables reales); `.env.example` documenta `AI__PROVIDER`, `AI__APIKEY` y `AI__MODEL`. |
 | 2026-11-09 | Agregado adaptador OpenAI Chat Completions: con `AI__PROVIDER=opencode` y un modelo no-Gemini (DeepSeek V4.1 Flash, GLM, Qwen) usa `/openai/v1/chat/completions`, envía la imagen como data URL y expone `apiFamily` en `/api/ai/status`. |
+| 2026-11-09 | Agregado `scripts/run-backend.ps1` para sortear Smart App Control: compila en Release y ejecuta el DLL sin el apphost `.exe`. |

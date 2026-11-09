@@ -127,6 +127,17 @@ $env:Ai__Provider='fake'
 dotnet run --project backend/FashionApp.Api
 ```
 
+> **Windows / Smart App Control:** si `dotnet run` falla con
+> `Una directiva de Control de aplicaciones bloqueó este archivo`, usá el
+> script que compila en Release y ejecuta el DLL directamente:
+>
+> ```powershell
+> .\scripts\run-backend.ps1
+> ```
+>
+> También podés desactivar Smart App Control en Seguridad de Windows, pero el
+> script evita tocar esa configuración.
+
 ```bash
 # Linux/macOS
 Ai__Provider=fake dotnet run --project backend/FashionApp.Api
