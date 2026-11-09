@@ -4,6 +4,12 @@
 FROM node:22-alpine AS frontend
 WORKDIR /src
 
+# In the container the API serves the SPA from the same origin, so the bundle
+# must use relative /api/* and /media/* paths. The build arg exists only for
+# hosts that serve the SPA separately from the API.
+ARG VITE_API_URL=/
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN corepack enable && corepack prepare pnpm@12.18.0 --activate
 
 # Copy the manifests first so dependency installation is cached independently

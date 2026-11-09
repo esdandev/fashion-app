@@ -251,7 +251,38 @@ docker compose down -v
   borra la demo.
 - `docker-compose.yml` arranca en `Production` con la demo aislada
   (`DEMO__DATAROOT=/data/demo`), IA y feeds fake y sin job diario.
+- El build compila el frontend con `VITE_API_URL=/`, así que el bundle llama a
+  `/api/*` y `/media/*` en el mismo origen; no queda compilado
+  `http://localhost:5210`.
 - `wwwroot` se genera dentro de la imagen y **no** se commitea.
+
+### Instancia personal (sin demo)
+
+La imagen arranca en `Production`: una instancia personal **exige**
+`APP__TOKEN` y, sin él, el contenedor se niega a arrancar (por diseño). También
+conviene usar un volumen propio para no mezclar los datos personales con la
+demo.
+
+```bash
+# Imagen local (o `docker compose build`)
+docker build -t fashion-app:local .
+
+docker run --rm -p 8080:8080 \
+  -e DEMO__ENABLED=false \
+  -e APP__TOKEN='un-secreto-largo' \
+  -e AI__PROVIDER=gemini \
+  -e AI__APIKEY='tu-clave' \
+  -v fashion_personal_data:/data \
+  fashion-app:local
+```
+
+- En la UI, guardá el mismo token en `sessionStorage` con la clave `app_token`.
+- Sin `AI__APIKEY`, usá `AI__PROVIDER=fake` solo en entornos descartables: en
+  `Production` el análisis real de fotos depende de Gemini.
+- El digest real necesita `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`; el
+  default del contenedor es `rss`, así que sin feeds no se genera digest.
+- `docker compose` levanta la demo; para la instancia personal usá `docker run`
+  o un override de compose con estos mismos valores.
 
 > **Handoff:** este entorno de desarrollo no tiene Docker, así que el
 > `docker build` real no se ejecutó acá. La validación local cubrió
