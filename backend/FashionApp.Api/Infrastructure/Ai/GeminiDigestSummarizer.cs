@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using FashionApp.Api.Features.Digest;
@@ -16,9 +15,6 @@ namespace FashionApp.Api.Infrastructure.Ai;
 public sealed class GeminiDigestSummarizer : IDigestSummarizer
 {
     public const int MaxPromptEntries = 20;
-
-    private const string EndpointTemplate =
-        "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
 
     private const string PromptResource =
         "FashionApp.Api.Infrastructure.Ai.Prompts.digest-summary.md";
@@ -49,12 +45,6 @@ public sealed class GeminiDigestSummarizer : IDigestSummarizer
 
         try
         {
-            var url = string.Format(
-                CultureInfo.InvariantCulture,
-                EndpointTemplate,
-                Uri.EscapeDataString(_options.Model),
-                Uri.EscapeDataString(_options.ApiKey));
-
             var prompt = _prompt.Replace(
                 "{{ENTRIES}}",
                 BuildEntriesJson(entries),
@@ -81,8 +71,9 @@ public sealed class GeminiDigestSummarizer : IDigestSummarizer
                 Encoding.UTF8,
                 "application/json");
 
+            using var request = AiRequestTargetFactory.CreateRequest(_options, content);
             using var response = await _httpClient
-                .PostAsync(url, content, ct)
+                .SendAsync(request, ct)
                 .ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();

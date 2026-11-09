@@ -54,15 +54,17 @@ var aiOptions = aiSection.Get<AiOptions>() ?? new AiOptions();
 var aiProvider = aiOptions.Provider?.Trim() ?? "";
 var usingFakeProvider = aiProvider.Length == 0
     || aiProvider.Equals("fake", StringComparison.OrdinalIgnoreCase);
+var usingRealProvider = aiProvider.Equals("gemini", StringComparison.OrdinalIgnoreCase)
+    || aiProvider.Equals("opencode", StringComparison.OrdinalIgnoreCase);
 
-if (aiProvider.Equals("gemini", StringComparison.OrdinalIgnoreCase))
+if (usingRealProvider)
 {
     // Fail at startup, not on the first upload: a missing key would otherwise
     // surface as a silent Confidence = 0 for every garment.
     if (string.IsNullOrWhiteSpace(aiOptions.ApiKey))
     {
         throw new InvalidOperationException(
-            "Ai:Provider está configurado como 'gemini' pero falta Ai:ApiKey. " +
+            $"Ai:Provider está configurado como '{aiProvider}' pero falta Ai:ApiKey. " +
             "Define la variable de entorno AI__APIKEY o cambia Ai:Provider a 'fake'.");
     }
 
@@ -79,7 +81,7 @@ else if (usingFakeProvider)
 else
 {
     throw new InvalidOperationException(
-        $"Proveedor de IA desconocido '{aiOptions.Provider}'. Usa 'fake' o 'gemini'.");
+        $"Proveedor de IA desconocido '{aiOptions.Provider}'. Usa 'fake', 'gemini' u 'opencode'.");
 }
 
 // The digest has its own provider switch because feeds are not AI: they can be
@@ -129,7 +131,7 @@ var demoEnabled = app.Configuration.GetValue("Demo:Enabled", false);
 app.Logger.LogInformation(
     "IA configurada: provider={Provider}, model={Model}, keyConfigured={KeyConfigured}",
     aiOptions.Provider,
-    aiOptions.Model,
+    AiRequestTargetFactory.ResolveModel(aiOptions.Provider, aiOptions.Model),
     !string.IsNullOrWhiteSpace(aiOptions.ApiKey));
 
 StartupChecks.ValidateSecurity(
@@ -164,7 +166,10 @@ app.MapGet("/api/config", (IConfiguration configuration) => Results.Ok(new
 app.MapGet("/api/ai/status", (IConfiguration configuration) => Results.Ok(new
 {
     provider = configuration["Ai:Provider"] ?? "fake",
-    model = configuration["Ai:Model"] ?? "gemini-3.8-flash",
+    model = AiRequestTargetFactory.ResolveModel(
+        configuration["Ai:Provider"],
+        configuration["Ai:Model"]),
+    baseUrl = configuration["Ai:BaseUrl"] ?? "",
     keyConfigured = !string.IsNullOrWhiteSpace(configuration["Ai:ApiKey"]),
     digestProvider = configuration["Digest:Provider"] ?? "rss"
 })).RequireToken();

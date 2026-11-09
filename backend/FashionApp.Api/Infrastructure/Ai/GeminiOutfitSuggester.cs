@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using FashionApp.Api.Features.Outfits;
@@ -15,9 +14,6 @@ namespace FashionApp.Api.Infrastructure.Ai;
 /// </summary>
 public sealed class GeminiOutfitSuggester : IOutfitSuggester
 {
-    private const string EndpointTemplate =
-        "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
-
     private const string PromptResource =
         "FashionApp.Api.Infrastructure.Ai.Prompts.outfit-suggestions.md";
 
@@ -45,12 +41,6 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
     {
         try
         {
-            var url = string.Format(
-                CultureInfo.InvariantCulture,
-                EndpointTemplate,
-                Uri.EscapeDataString(_options.Model),
-                Uri.EscapeDataString(_options.ApiKey));
-
             var payload = new
             {
                 contents = new[]
@@ -75,8 +65,9 @@ public sealed class GeminiOutfitSuggester : IOutfitSuggester
                 Encoding.UTF8,
                 "application/json");
 
+            using var request = AiRequestTargetFactory.CreateRequest(_options, content);
             using var response = await _httpClient
-                .PostAsync(url, content, ct)
+                .SendAsync(request, ct)
                 .ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();

@@ -165,6 +165,23 @@ dotnet run --project backend/FashionApp.Api
   El modelo `gemini-2.0-flash` está retirado desde junio de 2026. El default es
   `gemini-3.8-flash`; si tu cuenta no lo tiene, elegí otro de `-ListModels` y
   definí `AI__MODEL`.
+- **OpenCode como proveedor.** OpenCode Console expone una API de inferencia en
+  `https://opencode.ai/inference`, con endpoints compatibles con Gemini, OpenAI
+  y Anthropic. La app usa el endpoint Gemini-compatible, así que el análisis de
+  imágenes funciona con modelos Gemini:
+
+```powershell
+$env:AI__PROVIDER='opencode'
+$env:AI__APIKEY='<personal-api-key-de-opencode>'
+$env:AI__MODEL='gemini-4-argon'   # opcional; ya es el default de OpenCode
+dotnet run --project backend/FashionApp.Api
+```
+
+  La clave es una **API key personal de OpenCode Console**, no la sesión del
+  agente. Los modelos free solo funcionan dentro de OpenCode y devuelven `403`
+  desde otros clientes; usá un modelo pago o una suscripción Go. `AI__BASEURL`
+  permite apuntar a otro gateway compatible. Verificá con
+  `.\scripts\check-opencode.ps1` o `.\scripts\check-opencode.ps1 -ListModels`.
 - En `Development`, `Digest__Provider=fake` devuelve ocho notas de ejemplo;
   para feeds reales usá `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`.
 
@@ -263,9 +280,10 @@ Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
 | `APP__ALLOWANONYMOUS` | `false` | Escape hatch explícito para una instancia personal sin token en `Production`. |
 | `DEMO__ENABLED` | `false` | Modo demo: siembra datos, usa su propia raíz y rechaza escrituras con `403`. |
 | `DEMO__DATAROOT` | `<DATA__ROOT>/demo` | Raíz de datos de la demo. No puede coincidir con la base ni los uploads personales. |
-| `AI__PROVIDER` | `fake` | `fake` o `gemini`. |
-| `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER=gemini`. |
-| `AI__MODEL` | `gemini-3.8-flash` | Modelo del analizador real. `gemini-2.0-flash` está retirado. |
+| `AI__PROVIDER` | `fake` | `fake`, `gemini` u `opencode`. |
+| `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER` es `gemini` u `opencode`. |
+| `AI__MODEL` | según proveedor | `gemini-3.8-flash` con Gemini; `gemini-4-argon` con OpenCode. Podés overridearlo. |
+| `AI__BASEURL` | vacío | Override del base URL del proveedor. OpenCode usa `https://opencode.ai/inference`. |
 | `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA por día (calendario UTC). |
 | `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits por día. Comparte el contador atómico en SQLite. |
 | `DIGEST__PROVIDER` | `rss` (`fake` en `Development`) | `rss` lee feeds reales; `fake` devuelve notas determinísticas sin red. |

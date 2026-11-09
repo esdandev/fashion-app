@@ -15,9 +15,6 @@ namespace FashionApp.Api.Infrastructure.Ai;
 /// </summary>
 public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
 {
-    private const string EndpointTemplate =
-        "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
-
     private const string PromptResource =
         "FashionApp.Api.Infrastructure.Ai.Prompts.garment-analysis.md";
 
@@ -57,12 +54,6 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
     {
         try
         {
-            var url = string.Format(
-                CultureInfo.InvariantCulture,
-                EndpointTemplate,
-                Uri.EscapeDataString(_options.Model),
-                Uri.EscapeDataString(_options.ApiKey));
-
             var payload = new
             {
                 contents = new[]
@@ -95,8 +86,9 @@ public sealed class GeminiGarmentAnalyzer : IGarmentAnalyzer
                 Encoding.UTF8,
                 "application/json");
 
+            using var request = AiRequestTargetFactory.CreateRequest(_options, content);
             using var response = await _httpClient
-                .PostAsync(url, content, ct)
+                .SendAsync(request, ct)
                 .ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
