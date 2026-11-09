@@ -1,0 +1,44 @@
+# Fly.io configuration for the public demo.
+#
+# The app name must be globally unique on Fly.io. If "fashion-app-demo" is
+# taken, change it here and use your own name in the commands from
+# docs/deploy.md. The personal instance can reuse this file with a different
+# `app`, its own volume and the secrets described in that document.
+app = "fashion-app-demo"
+primary_region = "gru"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  min_machines_running = 1
+
+  # Fly.io checks run against the Machine over the private network, not through
+  # the edge, so force_https does not redirect them. The API answers 200 here.
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[mounts]]
+  source = "fashion_data"
+  destination = "/data"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  DATA__ROOT = "/data"
+  DEMO__ENABLED = "true"
+  DEMO__DATAROOT = "/data/demo"
+  AI__PROVIDER = "fake"
+  DIGEST__PROVIDER = "fake"
+  DIGEST__GENERATEONSTARTUP = "false"
+  APP__ALLOWANONYMOUS = "false"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

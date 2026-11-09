@@ -14,6 +14,7 @@ combinan con cada noticia.
 - Plan de la Fase 0–1: `docs/plan-fase-0-1.md`
 - Plan de la Fase 2: `docs/plan-fase-2.md`
 - Plan de la Fase 3: `docs/plan-fase-3.md`
+- Deploy en Fly.io: `docs/deploy.md`
 - Bitácora: `docs/Fashion App.md` → sección **Bitácora**
 
 ## Stack
@@ -289,6 +290,34 @@ docker run --rm -p 8080:8080 \
 > `pnpm --dir frontend build` y `dotnet publish` (más un smoke del publish con
 > `dist` copiado a `wwwroot`). El primer build de la imagen es parte del handoff
 > de deploy; ver `docs/deploy.md`.
+
+## Deploy en Fly.io
+
+El repo incluye `fly.toml` para publicar la demo pública como un solo contenedor:
+región `gru`, puerto interno `8080`, HTTPS forzado, volumen `fashion_data` en
+`/data`, una Machine de 512 MB y health check `GET /api/health`.
+
+```bash
+# Resumen; los comandos completos están en docs/deploy.md
+fly auth login
+fly apps create fashion-app-demo
+fly volumes create fashion_data --region gru --size 1
+fly deploy
+fly open
+```
+
+- La demo corre con IA y feeds fake, sin job diario y en solo lectura, usando
+  `/data/demo` para no tocar nunca datos personales.
+- La instancia personal se activa con secretos:
+  `APP__TOKEN`, `AI__PROVIDER=gemini`, `AI__APIKEY` y `DEMO__ENABLED=false`.
+- Reset de la demo: borrar **solo** `/data/demo` por SSH y reiniciar; nunca
+  `/data` completo.
+- Comandos completos, verificación y límites: [docs/deploy.md](docs/deploy.md).
+
+> **Handoff:** no hay `flyctl` ni credenciales de Fly.io en este entorno, así que
+> **nada se deployó desde acá**. Crear la app, el volumen y ejecutar `fly deploy`
+> queda a cargo del dueño de la cuenta; `docs/deploy.md` tiene los comandos
+> exactos, la verificación y las limitaciones.
 
 ## Endpoints implementados
 
