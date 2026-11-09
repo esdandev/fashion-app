@@ -226,7 +226,7 @@ primary_region = "gru"
 - [ ] **Step 2: Escribir `docs/deploy.md`**
 
 Incluir:
-1. `winget install Fly-io.flyctl` o el instalador oficial; `fly auth login`.
+1. `winget install Fly.cli` o el instalador oficial; `fly auth login`.
 2. `fly apps create fashion-app-demo` (o `fly launch --no-deploy`).
 3. `fly volumes create fashion_data --region gru --size 1`.
 4. `fly deploy`.
@@ -356,3 +356,5 @@ git commit -m "docs: close phase 4 with smoke checklist and final status"
 ## Nota de handoff
 
 El deploy público requiere cuenta de Fly.io (o el host que elijas), un volumen persistente y, para la instancia personal, secretos de IA y token. Nada de eso se ejecuta desde este entorno. La fase deja el contenedor, la configuración, el CI y la documentación listos para que el deploy sea un puñado de comandos.
+
+> **Estado:** Fase 4 implementada y verificada localmente el 2026-11-09 (265 tests backend, 51 frontend, 11 E2E). El deploy público y el build de la imagen quedan como handoff del dueño.
