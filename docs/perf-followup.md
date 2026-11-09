@@ -1,7 +1,26 @@
 # Seguimiento de performance — hero de Hoy (`perf-1`)
 
-**Estado:** abierta. No se implementó en la Fase 4; esta tarea documenta el
-hallazgo y el trabajo pendiente.
+**Estado:** **aceptada como deuda documentada para la Fase 4** (decisión del
+controller). No se implementó en esta ola: se acepta el LCP medido de 3,21 s
+contra el presupuesto de 2,5 s y el trabajo queda agendado en este documento.
+No se hizo una reescritura riesgosa de performance en la Fase 4.
+
+## Aceptación de la Fase 4
+
+El presupuesto de LCP **no se cumple** en la medición local (3,14–3,22 s,
+mediana 3,21 s). La Fase 4 se cierra con esa deuda **explícitamente aceptada**:
+
+- el resto del presupuesto se cumple (CLS 0,060; TBT 42–55 ms como proxy de
+  laboratorio de INP);
+- el elemento LCP y el *breakdown* están medidos y versionados en
+  [metrics/](metrics/README.md), así que la tarea de seguimiento es accionable;
+- se prioriza cerrar deploy, demo, CI y documentación sin un cambio de
+  arquitectura del hero que no se pueda medir en esta ola;
+- el límite se repite en el [README](../README.md#límites-conocidos) y en la
+  bitácora del spec.
+
+Esta aceptación no es un "verde": es una deuda conocida con criterio de salida
+y medición antes/después.
 
 ## Contexto
 

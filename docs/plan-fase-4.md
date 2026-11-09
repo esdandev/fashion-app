@@ -226,7 +226,7 @@ primary_region = "gru"
 - [ ] **Step 2: Escribir `docs/deploy.md`**
 
 Incluir:
-1. `winget install Fly.cli` o el instalador oficial; `fly auth login`.
+1. `winget install Fly-io.flyctl` o el instalador oficial; `fly auth login`.
 2. `fly apps create fashion-app-demo` (o `fly launch --no-deploy`).
 3. `fly volumes create fashion_data --region gru --size 1`.
 4. `fly deploy`.

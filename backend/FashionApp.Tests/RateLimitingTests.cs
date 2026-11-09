@@ -1,3 +1,6 @@
+using System.Net;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 
 public sealed class RateLimitingTests
@@ -35,5 +38,73 @@ public sealed class RateLimitingTests
             Environment.SetEnvironmentVariable(enabledName, previousEnabled);
             Environment.SetEnvironmentVariable(permitName, previousPermit);
         }
+    }
+
+    [Fact]
+    public async Task Rate_limit_partitions_on_the_fly_client_ip_header()
+    {
+        using var factory = new TestAppFactory();
+        using var limited = EnableLimiter(factory, permitLimit: 2);
+        var client = limited.CreateClient();
+
+        // Two requests from one visitor fill the bucket, the third is rejected,
+        // and a different Fly client IP still gets its own window. Without the
+        // resolver every request would share the proxy address and the third
+        // request from the second visitor would already be a 429.
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await GetGarments(client, flyClientIp: "203.0.113.30")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await GetGarments(client, flyClientIp: "203.0.113.30")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.TooManyRequests,
+            (await GetGarments(client, flyClientIp: "203.0.113.30")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await GetGarments(client, flyClientIp: "203.0.113.31")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rate_limit_falls_back_to_the_leftmost_forwarded_for()
+    {
+        using var factory = new TestAppFactory();
+        using var limited = EnableLimiter(factory, permitLimit: 1);
+        var client = limited.CreateClient();
+
+        var first = new HttpRequestMessage(HttpMethod.Get, "/api/garments");
+        first.Headers.Add("X-Forwarded-For", "203.0.113.40, 10.0.0.1");
+        var sameVisitor = new HttpRequestMessage(HttpMethod.Get, "/api/garments");
+        sameVisitor.Headers.Add("X-Forwarded-For", "203.0.113.40, 10.0.0.1");
+        var otherVisitor = new HttpRequestMessage(HttpMethod.Get, "/api/garments");
+        otherVisitor.Headers.Add("X-Forwarded-For", "203.0.113.41, 10.0.0.1");
+
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(first)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.TooManyRequests,
+            (await client.SendAsync(sameVisitor)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.SendAsync(otherVisitor)).StatusCode);
+    }
+
+    private static WebApplicationFactory<Program> EnableLimiter(
+        TestAppFactory factory,
+        int permitLimit) =>
+        factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["RateLimiting:Enabled"] = "true",
+                    ["RateLimiting:PermitLimit"] = permitLimit.ToString()
+                })));
+
+    private static Task<HttpResponseMessage> GetGarments(
+        HttpClient client,
+        string flyClientIp)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/garments");
+        request.Headers.Add("Fly-Client-IP", flyClientIp);
+        return client.SendAsync(request);
     }
 }

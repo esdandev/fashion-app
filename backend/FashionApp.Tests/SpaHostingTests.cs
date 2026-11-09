@@ -1,4 +1,5 @@
 using System.Net;
+using FashionApp.Api.Infrastructure;
 
 public sealed class SpaHostingTests
 {
@@ -97,5 +98,51 @@ public sealed class SpaHostingTests
             response.Headers.CacheControl!.ToString());
         Assert.Contains("javascript", response.Content.Headers.ContentType!.ToString());
         Assert.Contains("console.log", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Fingerprinted_file_outside_assets_is_cached_immutably()
+    {
+        using var factory = new TestAppFactory { WithSpa = true };
+        await WriteSpaFileAsync(factory, "main-B0a1C2d3.js", "console.log('spa');");
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/main-B0a1C2d3.js");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            SpaStaticFiles.ImmutableCacheControl,
+            response.Headers.CacheControl!.ToString());
+    }
+
+    [Theory]
+    [InlineData("favicon.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>")]
+    [InlineData("demo-note.webp", "not-a-real-webp")]
+    public async Task Non_fingerprinted_public_files_get_a_short_cache(
+        string fileName,
+        string content)
+    {
+        using var factory = new TestAppFactory { WithSpa = true };
+        await WriteSpaFileAsync(factory, fileName, content);
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/" + fileName);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            SpaStaticFiles.ShortCacheControl,
+            response.Headers.CacheControl!.ToString());
+    }
+
+    private static async Task WriteSpaFileAsync(
+        TestAppFactory factory,
+        string relativePath,
+        string content)
+    {
+        var path = Path.Combine(
+            factory.SpaRoot,
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, content);
     }
 }

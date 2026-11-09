@@ -12,6 +12,7 @@ dist/
 .env.*
 data/
 .test-data/
+.tmp/
 
 # Config local de deploy (puede tener valores propios)
 fly.personal.toml

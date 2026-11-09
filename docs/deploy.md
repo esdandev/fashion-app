@@ -36,7 +36,7 @@ las imágenes viven en el volumen persistente `fashion_data` montado en `/data`.
 Windows (PowerShell), con `winget`:
 
 ```powershell
-winget install Fly.cli
+winget install Fly-io.flyctl
 ```
 
 Windows, con el instalador oficial:
@@ -231,8 +231,15 @@ fly deploy
 - Los secretos de Fly.io **pisan** las variables de `[env]` con el mismo nombre.
   En PowerShell, `fly secrets set` no acepta la continuación con `\`: poné todos
   los pares `CLAVE=valor` en una sola línea.
-- En la UI, guardá el mismo token en `sessionStorage` con la clave `app_token`;
-  el cliente lo manda como `X-App-Token`.
+- En la UI, guardá el mismo token en `sessionStorage` bajo la clave
+  `app_token`; el cliente lo manda como `X-App-Token`. En la consola del
+  navegador del dominio de la app:
+
+  ```js
+  sessionStorage.setItem('app_token', 'un-secreto-largo-y-aleatorio')
+  ```
+
+  Recargá la página. El valor vive en esa pestaña y se pierde al cerrarla.
 - `fly secrets set` ya reinicia las Machines. El `fly deploy` de arriba solo hace
   falta si además cambió la imagen; no está de más para dejar la release
   explícita.
@@ -305,6 +312,12 @@ van siempre por `fly secrets set`.
   la Machine pero no borra `/data`.
 - La demo no requiere token y es de solo lectura; la instancia personal sí exige
   `APP__TOKEN`. No expongas la instancia personal sin token.
+- **La Machine solo debe ser accesible a través del proxy de Fly.** El rate
+  limit resuelve la IP del visitante con `Fly-Client-IP`, después con el primer
+  valor de `X-Forwarded-For` y por último con la dirección del socket. Esos
+  headers se pueden falsificar en una conexión directa, así que no publiques la
+  Machine por una IP pública ni desactives el proxy: el límite por IP solo es
+  confiable cuando el único camino de entrada es el edge de Fly.
 - El deploy es manual. El workflow de CI (`.github/workflows/ci.yml`) no
   deploya ni usa secretos reales.
 

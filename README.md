@@ -26,6 +26,29 @@ un digest de 8 notas y tres outfits.
 > programáticamente. Antes de publicar el portfolio conviene reemplazarlos por
 > fotos con licencia (ver **Límites conocidos**).
 
+### Flujo de alta en video
+
+[![Formulario de confirmación del alta](docs/screenshots/upload-flow-poster.png)](docs/screenshots/upload-flow.webm)
+
+Video WebM del flujo completo **subir foto → analizar → confirmar**, grabado con
+el backend aislado y el analizador fake. Se regenera solo a pedido, igual que
+las capturas:
+
+```bash
+cd frontend
+CAPTURE=1 pnpm exec playwright test tests/upload-flow.spec.ts
+```
+
+```powershell
+# PowerShell
+cd frontend
+$env:CAPTURE='1'
+pnpm exec playwright test tests/upload-flow.spec.ts
+```
+
+El spec está apagado salvo `CAPTURE=1` y **no corre en CI**: es una grabación de
+portfolio, no un test de regresión.
+
 ## Features
 
 - **Alta asistida por IA.** La foto se normaliza a WebP (EXIF eliminado,
@@ -226,7 +249,7 @@ Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
 | `DIGEST__MAXAGEHOURS` | `48` | Descarta notas publicadas hace más de estas horas. |
 | `DIGEST__ADMINSECRET` | vacío | Secreto de `POST /api/digest/refresh` (`X-Admin-Secret`). Vacío lo deshabilita. |
 | `RATELIMITING__ENABLED` | `true` | Rate limit por IP en `/api/garments`, `/api/outfits/suggest` y `/api/digest/refresh`. |
-| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP; el exceso responde `429` + `Retry-After`. |
+| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP; el exceso responde `429` + `Retry-After`. Detrás del proxy usa `Fly-Client-IP` y luego el primer `X-Forwarded-For`. |
 | `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. |
 | `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes. |
 | `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS en desarrollo. |
@@ -259,6 +282,11 @@ Comandos completos, verificación, reset de demo y límites:
 > **Handoff:** no hay `flyctl` ni credenciales de Fly.io en este entorno, así que
 > **nada se deployó desde acá**. El build de la imagen, la creación de la app y
 > el volumen quedan a cargo del dueño de la cuenta.
+>
+> **Proxy de Fly:** el rate limit usa `Fly-Client-IP` y, si falta, el primer
+> `X-Forwarded-For`, antes de caer a la dirección del socket. La Machine debe
+> quedar accesible **solo** a través del proxy: una conexión directa permitiría
+> falsificar esos headers y saltear el límite por IP.
 
 ## Rendimiento
 
@@ -332,7 +360,7 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 - **Imagen Docker no construida acá.** No hay Docker disponible. Sí se validó
   `pnpm build`, `dotnet publish` y un smoke de producción local con la SPA en
   `wwwroot`, `/api/health`, `/api/digest/today`, `/media/*` y el fallback de
-  rutas.
+  rutas. Comandos y resultados reales en [docs/smoke.md](docs/smoke.md).
 - **Fotos de demo genéricas.** Los assets del manifiesto son placeholders
   generados con Magick.NET y llevan la palabra «Demo» impresa. Reemplazarlos
   por fotos con licencia antes de un portfolio público.
@@ -343,9 +371,12 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 - **SQLite y una sola Machine.** No hay escritura concurrente multi-nodo ni
   escalado horizontal; el volumen vive en una región y el deploy reinicia la
   Machine.
-- **Métricas de laboratorio.** INP no está medido y el LCP local supera el
-  presupuesto; Lighthouse no reemplaza una medición de campo. El seguimiento
-  está en [docs/perf-followup.md](docs/perf-followup.md).
+- **Métricas de laboratorio y LCP fuera de presupuesto (aceptado).** INP no
+  está medido y el LCP local (3,21 s) supera el presupuesto de 2,5 s. Lighthouse
+  no reemplaza una medición de campo. La Fase 4 cierra con esa deuda
+  **explícitamente aceptada** y el seguimiento accionable queda en
+  [docs/perf-followup.md](docs/perf-followup.md); no se reescribió el hero en
+  esta ola.
 - **CI sin remoto acá.** El workflow de GitHub Actions está versionado, pero
   este clon no tiene remoto configurado: los jobs corren cuando el repo se
   publique en GitHub.
@@ -369,7 +400,8 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 │   ├── architecture.md          diagramas y decisiones técnicas
 │   ├── deploy.md                handoff de Fly.io
 │   ├── metrics/                 JSON de Lighthouse y entorno de medición
-│   ├── perf-followup.md         tarea abierta de performance del hero de Hoy
+│   ├── smoke.md                 smoke de producción local (resultados reales)
+│   ├── perf-followup.md         deuda aceptada de performance del hero de Hoy
 │   ├── plan-fase-*.md           planes de implementación
 │   ├── Fashion App.md           spec y bitácora
 │   └── screenshots/             capturas desktop y mobile
@@ -416,6 +448,7 @@ request, pero la UI usa `analyze` + `confirm`.
 - Spec y bitácora: [docs/Fashion App.md](docs/Fashion%20App.md)
 - Arquitectura: [docs/architecture.md](docs/architecture.md)
 - Deploy en Fly.io: [docs/deploy.md](docs/deploy.md)
+- Smoke de producción local: [docs/smoke.md](docs/smoke.md)
 - Métricas de Lighthouse: [docs/metrics/README.md](docs/metrics/README.md)
 - Seguimiento de performance: [docs/perf-followup.md](docs/perf-followup.md)
 - Plan de la Fase 4: [docs/plan-fase-4.md](docs/plan-fase-4.md)
