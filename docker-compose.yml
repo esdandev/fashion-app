@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+    image: fashion-app:local
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DATA__ROOT: /data
+      DEMO__ENABLED: "true"
+      DEMO__DATAROOT: /data/demo
+      AI__PROVIDER: fake
+      DIGEST__PROVIDER: fake
+      DIGEST__GENERATEONSTARTUP: "false"
+    volumes:
+      - fashion_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  fashion_data:

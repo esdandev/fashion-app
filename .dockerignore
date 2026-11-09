@@ -1,0 +1,23 @@
+# Git y metadatos del agente
+.git
+.superpowers
+
+# Dependencias y salidas de Node
+**/node_modules
+frontend/dist
+**/test-results
+**/playwright-report
+
+# Salidas de .NET
+**/bin
+**/obj
+
+# Datos locales (base personal, demo y uploads)
+data
+.test-data
+
+# Artefactos de validación local
+.tmp
+
+# Documentación con capturas pesadas
+docs/screenshots

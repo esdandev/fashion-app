@@ -224,6 +224,41 @@ dotnet run --project backend/FashionApp.Api
 - Para volver al estado inicial: detené el backend y borrá **solo**
   `data/demo/`. No borres `data/` completo: ahí vive tu base personal.
 
+## Docker (imagen de producción)
+
+El `Dockerfile` es multi-stage: compila la SPA con Node 22 + pnpm, publica la API
+con .NET 10 y arma la imagen final sobre `aspnet:10.0`. La imagen sirve API y SPA
+en un solo origen (`wwwroot` junto al binario), escucha en `8080` y corre como el
+usuario no root `app`.
+
+```bash
+# Construir y levantar la demo local
+docker compose up --build
+
+# Estado del healthcheck (GET /api/health)
+docker compose ps
+
+# Detener sin tocar los datos
+docker compose down
+
+# Detener y borrar el volumen de datos (reset de la demo)
+docker compose down -v
+```
+
+- App: `http://localhost:8080`; health: `http://localhost:8080/api/health`.
+- La base SQLite y las imágenes viven en el volumen nombrado `fashion_data`
+  montado en `/data` (`DATA__ROOT=/data`), así que recrear el contenedor no
+  borra la demo.
+- `docker-compose.yml` arranca en `Production` con la demo aislada
+  (`DEMO__DATAROOT=/data/demo`), IA y feeds fake y sin job diario.
+- `wwwroot` se genera dentro de la imagen y **no** se commitea.
+
+> **Handoff:** este entorno de desarrollo no tiene Docker, así que el
+> `docker build` real no se ejecutó acá. La validación local cubrió
+> `pnpm --dir frontend build` y `dotnet publish` (más un smoke del publish con
+> `dist` copiado a `wwwroot`). El primer build de la imagen es parte del handoff
+> de deploy; ver `docs/deploy.md`.
+
 ## Endpoints implementados
 
 | Método | Ruta | Función |
