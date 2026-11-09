@@ -181,3 +181,32 @@ test('crea un outfit manualmente y edita el nombre', async ({
     page.getByRole('article').filter({ hasText: originalName }),
   ).toHaveCount(0)
 })
+
+test('elimina un outfit guardado', async ({ page, request }) => {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const name = `Look a eliminar ${suffix}`
+
+  await seedWardrobe(request)
+  await page.goto('/outfits')
+
+  await page.getByRole('button', { name: 'Crear outfit' }).click()
+  const builder = page.getByTestId('outfit-builder')
+  await builder.getByRole('checkbox', { name: /Top de prueba E2E/ }).click()
+  await builder
+    .getByRole('checkbox', { name: /Pantalón sastre beige/ })
+    .click()
+  await builder.getByRole('checkbox', { name: /Zapatillas blancas/ }).click()
+  await builder.getByLabel('Nombre').fill(name)
+  await builder.getByRole('button', { name: 'Guardar outfit' }).click()
+
+  const card = page
+    .getByRole('article')
+    .filter({ hasText: name })
+    .first()
+  await expect(card).toBeVisible()
+
+  await card.getByRole('button', { name: 'Eliminar' }).click()
+  await card.getByRole('button', { name: 'Sí, eliminar' }).click()
+
+  await expect(page.getByRole('article').filter({ hasText: name })).toHaveCount(0)
+})

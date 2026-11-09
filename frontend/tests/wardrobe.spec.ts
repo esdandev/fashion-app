@@ -204,3 +204,20 @@ test('en modo demo oculta las acciones de escritura', async ({ page }) => {
     'La demo pública es de solo lectura: no se pueden subir prendas.',
   )
 })
+
+test('elimina una prenda del guardarropa', async ({ page }) => {
+  const name = `Prenda a eliminar ${Date.now()}`
+  await page.goto('/guardarropa')
+  await analyzeFixture(page, 'camisa-verde.jpg')
+
+  await page.getByLabel('Nombre').fill(name)
+  await page.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByText(name)).toBeVisible()
+
+  const card = page.locator('article').filter({ hasText: name })
+  await card.getByRole('button', { name: 'Eliminar prenda' }).click()
+  await card.getByRole('button', { name: 'Sí, eliminar' }).click()
+
+  await expect(page.locator('article').filter({ hasText: name })).toHaveCount(0)
+})

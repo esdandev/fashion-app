@@ -1,8 +1,18 @@
 import { mediaUrl } from '../../lib/api'
 import type { OutfitItem } from '../../lib/types'
 
-/** At most five photos: the first one is the hero, the rest fill the column. */
+/** At most five garments, stacked from top to bottom like a mannequin. */
 const MAX_VISIBLE = 5
+
+const CATEGORY_RANK: Record<string, number> = {
+  outerwear: 0,
+  dress: 1,
+  top: 2,
+  bottom: 3,
+  shoes: 4,
+  bag: 5,
+  accessory: 6,
+}
 
 interface OutfitCollageProps {
   items: OutfitItem[]
@@ -10,30 +20,38 @@ interface OutfitCollageProps {
   className?: string
 }
 
-function byDisplayOrder(left: OutfitItem, right: OutfitItem): number {
-  return left.sortOrder - right.sortOrder || left.layer - right.layer
+/**
+ * Visual order on the mannequin: outerwear first, then the base piece,
+ * bottoms, shoes and finally bags/accessories. Within a category the order
+ * chosen by the user wins.
+ */
+function byMannequinOrder(left: OutfitItem, right: OutfitItem): number {
+  const rank =
+    (CATEGORY_RANK[left.garment.category] ?? 99) -
+    (CATEGORY_RANK[right.garment.category] ?? 99)
+
+  return rank || left.sortOrder - right.sortOrder || left.layer - right.layer
 }
 
 /**
- * Stable photo grid for a saved outfit: the first garment is the large hero
- * and up to four secondary photos stack on the right. The frame keeps a fixed
- * 4:3 ratio, and every image is lazy-loaded with explicit dimensions so the
- * list never shifts while the photos arrive.
+ * A portrait "mannequin" instead of a square photo grid: each garment is a
+ * full-width band, stacked head-to-toe. The frame keeps a fixed 2:3 ratio and
+ * every image is lazy-loaded with explicit dimensions so the outfit list never
+ * shifts while the photos arrive.
  */
 export function OutfitCollage({
   items,
   name,
   className = '',
 }: OutfitCollageProps) {
-  const ordered = [...items].sort(byDisplayOrder)
+  const ordered = [...items].sort(byMannequinOrder)
   const visible = ordered.slice(0, MAX_VISIBLE)
   const hiddenCount = ordered.length - visible.length
-  const [primary, ...secondary] = visible
 
-  if (!primary) {
+  if (visible.length === 0) {
     return (
       <div
-        className={`flex aspect-[4/3] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-100 text-xs text-stone-400 ${className}`}
+        className={`flex aspect-[2/3] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-100 text-xs text-stone-400 ${className}`}
       >
         Sin prendas
       </div>
@@ -44,56 +62,43 @@ export function OutfitCollage({
     <div
       role="group"
       aria-label={name}
-      className={`overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 ${className}`}
+      data-testid="outfit-mannequin"
+      className={`relative aspect-[2/3] overflow-hidden rounded-2xl border border-stone-200 bg-gradient-to-b from-stone-50 via-white to-stone-100 ${className}`}
     >
+      {/* A subtle vertical guide gives the stack its mannequin silhouette. */}
       <div
-        className={`grid aspect-[4/3] gap-1 p-1 ${
-          secondary.length > 0 ? 'grid-cols-[3fr_2fr]' : 'grid-cols-1'
-        }`}
-      >
-        <div className="relative min-h-0 overflow-hidden rounded-xl bg-stone-200">
-          <img
-            src={mediaUrl(primary.garment.thumbUrl)}
-            alt={primary.garment.name}
-            width={640}
-            height={480}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        </div>
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-5 left-1/2 w-px -translate-x-1/2 bg-stone-200/80"
+      />
 
-        {secondary.length > 0 && (
-          <div className="flex min-h-0 flex-col gap-1">
-            {secondary.map((item, index) => {
-              const isLast = index === secondary.length - 1
-              return (
-                <div
-                  key={`${item.garment.id}-${item.sortOrder}`}
-                  className="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-stone-200"
+      <div className="relative flex h-full flex-col">
+        {visible.map((item, index) => {
+          const isLast = index === visible.length - 1
+          return (
+            <div
+              key={`${item.garment.id}-${item.sortOrder}`}
+              className="relative min-h-0 flex-1 overflow-hidden border-b border-stone-200/60 last:border-b-0"
+            >
+              <img
+                src={mediaUrl(item.garment.thumbUrl)}
+                alt={item.garment.name}
+                width={600}
+                height={600}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-contain p-1"
+              />
+              {isLast && hiddenCount > 0 && (
+                <span
+                  className="absolute inset-0 flex items-center justify-center bg-stone-950/55 text-sm font-semibold text-white"
+                  aria-label={`${hiddenCount} prendas más`}
                 >
-                  <img
-                    src={mediaUrl(item.garment.thumbUrl)}
-                    alt={item.garment.name}
-                    width={320}
-                    height={240}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover"
-                  />
-                  {isLast && hiddenCount > 0 && (
-                    <span
-                      className="absolute inset-0 flex items-center justify-center bg-stone-950/55 text-sm font-semibold text-white"
-                      aria-label={`${hiddenCount} prendas más`}
-                    >
-                      +{hiddenCount}
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+                  +{hiddenCount}
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

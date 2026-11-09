@@ -55,11 +55,12 @@ portfolio, no un test de regresión.
   miniatura de 400 px) y se analiza para proponer nombre, categoría, color,
   temporada, formalidad y etiquetas de estilo. El alta va en dos pasos
   (analizar → confirmar), así cerrar el diálogo nunca deja una fila huérfana.
-- **Guardarropa filtrable.** Grilla responsive con filtros por categoría, color
+- **Guardarropa filtrable y editable.** Grilla responsive con filtros por categoría, color
   y temporada, paginación acumulativa y muestra del color real de cada prenda.
-- **Outfits con prendas reales.** Sugerencias por ocasión y clima, collage con
-  las fotos, guardado con la razón de la propuesta y edición manual (nombre,
-  ocasión, favorito y composición).
+  Cada prenda se puede eliminar con confirmación; los outfits guardados conservan su foto.
+- **Outfits con prendas reales.** Sugerencias por ocasión y clima, collage vertical
+  tipo maniquí con las fotos, guardado con la razón de la propuesta, edición manual
+  (nombre, ocasión, favorito y composición) y eliminación con confirmación.
 - **Portada Hoy.** Digest diario generado desde feeds RSS, con resumen propio,
   etiquetas de estilo, links a las fuentes y las prendas del guardarropa que
   combinan con cada noticia. La respuesta usa `ETag`/`304` y caché privada.
@@ -195,8 +196,8 @@ propio en los puertos 5210/5173**: el runner no reutiliza servidores existentes
 con IA y feeds fake, sin token y con `Demo__Enabled=false`. Los specs cubren:
 
 - **Guardarropa:** subir foto, confirmar, editar, ver la prenda, spinner,
-  reanálisis, cancelación, rechazo de archivos > 10 MB y demo de solo lectura.
-- **Outfits:** sugerir, guardar con `source=ai`, crear a mano y renombrar.
+  reanálisis, cancelación, eliminación, rechazo de archivos > 10 MB y demo de solo lectura.
+- **Outfits:** sugerir, guardar con `source=ai`, crear a mano, renombrar y eliminar.
 - **Hoy:** sembrar una prenda, regenerar el digest con `X-Admin-Secret` y
   verificar el hero, el link externo y la miniatura relacionada.
 

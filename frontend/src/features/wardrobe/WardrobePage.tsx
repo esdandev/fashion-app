@@ -185,7 +185,7 @@ export default function WardrobePage() {
                 ))
               : garments.map((garment) => (
                   <li key={garment.id}>
-                    <GarmentCard garment={garment} />
+                    <GarmentCard garment={garment} readOnly={isDemo} />
                   </li>
                 ))}
           </ul>

@@ -256,6 +256,23 @@ export const api = {
     return parseResponse<Garment>(response)
   },
 
+  /** Archives a garment. The API answers `204 No Content`. */
+  async deleteGarment(id: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/garments/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+        headers: authHeaders(),
+      },
+    )
+
+    if (response.ok) {
+      return
+    }
+
+    await parseResponse<never>(response)
+  },
+
   /** Saved outfits, already ordered by favorite and creation date. */
   async getOutfits(signal?: AbortSignal): Promise<Outfit[]> {
     const response = await fetch(`${API_BASE_URL}/api/outfits`, {
