@@ -1,21 +1,52 @@
 # Fashion App
 
-App web personal de moda: guardarropa, outfits y resumen diario.
+App web personal de moda: subí la foto de una prenda, la IA la cataloga y el
+guardarropa se convierte en la base para armar outfits y leer un resumen diario
+de noticias relacionado con lo que ya tenés.
 
-La **Fase 0–3** quedó cerrada: se sube una foto, se normaliza y analiza con IA,
-se confirman o corrigen los atributos y la prenda aparece en la grilla del
-guardarropa con filtros por categoría, color y temporada. Sobre ese guardarropa
-se sugieren outfits por ocasión y clima, se guardan como collage y también se
-arman o editan a mano. La portada **Hoy** muestra un resumen diario de moda
-generado desde feeds RSS, con enlaces a las fuentes y las prendas propias que
-combinan con cada noticia.
+Proyecto de portfolio: un solo dueño, un solo contenedor, sin cuentas. La API
+.NET sirve la SPA compilada y guarda todo en SQLite + archivos dentro de un
+único volumen persistente.
 
-- Diseño: `docs/Fashion App.md`
-- Plan de la Fase 0–1: `docs/plan-fase-0-1.md`
-- Plan de la Fase 2: `docs/plan-fase-2.md`
-- Plan de la Fase 3: `docs/plan-fase-3.md`
-- Deploy en Fly.io: `docs/deploy.md`
-- Bitácora: `docs/Fashion App.md` → sección **Bitácora**
+## Capturas
+
+Las imágenes se generan con el spec de Playwright
+(`frontend/tests/screenshots.spec.ts`) sobre datos sembrados por API: 14 prendas,
+un digest de 8 notas y tres outfits.
+
+| Hoy | Guardarropa | Outfits |
+|---|---|---|
+| ![Hoy en desktop](docs/screenshots/hoy-desktop.png) | ![Guardarropa en desktop](docs/screenshots/guardarropa-desktop.png) | ![Outfits en desktop](docs/screenshots/outfits-desktop.png) |
+
+| Hoy (mobile) | Guardarropa (mobile) | Outfits (mobile) |
+|---|---|---|
+| <img src="docs/screenshots/hoy-mobile.png" alt="Hoy en mobile" width="260"> | <img src="docs/screenshots/guardarropa-mobile.png" alt="Guardarropa en mobile" width="260"> | <img src="docs/screenshots/outfits-mobile.png" alt="Outfits en mobile" width="260"> |
+
+> Las fotos de las prendas son assets de demo genéricos, generados
+> programáticamente. Antes de publicar el portfolio conviene reemplazarlos por
+> fotos con licencia (ver **Límites conocidos**).
+
+## Features
+
+- **Alta asistida por IA.** La foto se normaliza a WebP (EXIF eliminado,
+  miniatura de 400 px) y se analiza para proponer nombre, categoría, color,
+  temporada, formalidad y etiquetas de estilo. El alta va en dos pasos
+  (analizar → confirmar), así cerrar el diálogo nunca deja una fila huérfana.
+- **Guardarropa filtrable.** Grilla responsive con filtros por categoría, color
+  y temporada, paginación acumulativa y muestra del color real de cada prenda.
+- **Outfits con prendas reales.** Sugerencias por ocasión y clima, collage con
+  las fotos, guardado con la razón de la propuesta y edición manual (nombre,
+  ocasión, favorito y composición).
+- **Portada Hoy.** Digest diario generado desde feeds RSS, con resumen propio,
+  etiquetas de estilo, links a las fuentes y las prendas del guardarropa que
+  combinan con cada noticia. La respuesta usa `ETag`/`304` y caché privada.
+- **Demo pública de solo lectura.** Datos sembrados, IA y feeds fake, costo
+  cero y todas las escrituras responden `403`.
+- **Límites y abuso controlados.** Cuotas diarias de IA, rate limit por IP y
+  errores `ProblemDetails` en español.
+- **Privacidad por diseño.** El token es un secreto compartido, las imágenes se
+  envían al proveedor de IA solo al analizarlas y la portada no expone prendas
+  a requests sin token cuando la instancia personal lo exige.
 
 ## Stack
 
@@ -23,29 +54,48 @@ combinan con cada noticia.
 |---|---|
 | Backend | .NET 10, Minimal APIs, EF Core 10, SQLite |
 | Frontend | Vite 8, React 19, TypeScript, Tailwind 4, TanStack Query 5, React Router 7 |
-| Imágenes | Magick.NET (normalización a WebP, EXIF eliminado, miniaturas de 400 px) |
-| IA | Gemini detrás de `IGarmentAnalyzer`; `fake` para desarrollo y tests |
-| Noticias | Feeds RSS + `BackgroundService` diario; resumen con Gemini o fake |
-| Tests | xUnit + `WebApplicationFactory`, Vitest, Playwright |
+| Imágenes | Magick.NET (WebP, EXIF eliminado, miniaturas de 400 px) |
+| IA | Gemini detrás de `IGarmentAnalyzer` / `IOutfitSuggester`; implementaciones `fake` para desarrollo, tests y demo |
+| Noticias | Feeds RSS/Atom + `BackgroundService` diario; resumen con Gemini o fake |
+| Infra | Docker multi-stage, Fly.io, volumen `/data`, GitHub Actions |
+| Tests | xUnit + `WebApplicationFactory`, Vitest + Testing Library, Playwright, Lighthouse |
 
-## Requisitos
+## Arquitectura
+
+```mermaid
+flowchart LR
+  SPA["React 19 · Vite"] -->|"SPA y /api/*"| API["ASP.NET Core 10"]
+  SPA -->|"/media/*"| Media["WebP + miniaturas"]
+  API --> DB[("SQLite")]
+  API --> Uploads[("uploads/")]
+  Job["Job diario de RSS + IA"] --> DB
+  Media --> Uploads
+```
+
+- **Un solo origen en producción:** la API sirve `index.html`, los assets con
+  hash y `/api/*` + `/media/*` desde el mismo puerto (`8080` en el contenedor).
+- **Una sola raíz de datos:** `DATA__ROOT` deriva `fashion.db` y `uploads/`. La
+  demo usa una raíz propia (`DATA__ROOT/demo`) y el arranque falla si intenta
+  apuntar a la base o a los uploads personales.
+- **La IA propone, el backend valida:** ids, URLs, etiquetas y composiciones se
+  revalidan antes de persistir. Los proveedores fake hacen deterministas el CI
+  y la demo.
+
+Diagrama completo, decisiones y topología de deploy:
+[docs/architecture.md](docs/architecture.md).
+
+## Cómo correr local
+
+Requisitos:
 
 - **.NET 10 SDK** (`dotnet --version`)
 - **Node 22+** y **pnpm** (`node --version`, `pnpm --version`)
-- Navegador de Playwright para el E2E (solo la primera vez):
+- Chromium de Playwright, solo para el E2E:
   `pnpm exec playwright install chromium`
-- No hace falta instalar SQLite por separado: EF Core incluye el proveedor.
-
-## Cómo correr
 
 ### 1. Backend
 
 Desde la raíz del repositorio:
-
-```bash
-# Linux/macOS
-Ai__Provider=fake dotnet run --project backend/FashionApp.Api
-```
 
 ```powershell
 # PowerShell
@@ -53,42 +103,20 @@ $env:Ai__Provider='fake'
 dotnet run --project backend/FashionApp.Api
 ```
 
+```bash
+# Linux/macOS
+Ai__Provider=fake dotnet run --project backend/FashionApp.Api
+```
+
 - API: `http://localhost:5210` (definido en
   `backend/FashionApp.Api/appsettings.Development.json`).
 - Health check: `GET http://localhost:5210/api/health`.
-- Raíz de datos: `data/` (se crea sola), resuelta una única vez al arrancar.
-  La base vive en `data/fashion.db` y las imágenes en `data/uploads`.
-  Ambas rutas están fuera de git. Configurá otra raíz con `DATA__ROOT`.
-- La demo usa su propia raíz (`data/demo` por defecto) para no leer ni borrar
-  nunca la base personal.
-
-`Ai:Provider=fake` devuelve siempre una camisa de lino determinística, sin
-llamadas de red ni costo. Para usar Gemini, definí `AI__PROVIDER=gemini` y
-`AI__APIKEY` (el arranque falla si falta la clave). En `Production`, arrancar la
-instancia personal con `Ai:Provider=fake` deja un warning en el log: usaría
-datos de ejemplo para fotos reales.
-
-El digest de la portada tiene su propio interruptor. En `Development`,
-`Digest:Provider=fake` devuelve ocho notas de ejemplo y `Resumen de prueba`, sin
-red. Para feeds reales, definí `DIGEST__PROVIDER=rss` y cargá
-`DIGEST__FEEDS__0__NAME` / `DIGEST__FEEDS__0__URL` (o la lista equivalente en
-`appsettings`). Con `DIGEST__GENERATEONSTARTUP=true` (default), el
-`BackgroundService` genera el digest al arrancar si todavía no hay uno de hoy y
-luego repite todos los días a `DIGEST__RUNAT` (07:00, hora local del servidor).
-
-Para forzar una regeneración manual del digest de hoy:
-
-```powershell
-curl.exe -X POST http://localhost:5210/api/digest/refresh `
-  -H "X-Admin-Secret: $env:DIGEST__ADMINSECRET"
-```
-
-En PowerShell la variable es `$env:DIGEST__ADMINSECRET`: el nombre de la clave
-usa doble guion bajo (`Digest:AdminSecret` en `appsettings`).
-`DIGEST__ADMINSECRET` debe estar definido; sin secreto el endpoint responde
-`401`, con un secreto distinto `403` y, si ya se generó en la última hora, `429`
-con `Retry-After`. Un fallo de feeds/IA devuelve `502` y conserva el digest
-anterior.
+- Datos: `data/fashion.db` y `data/uploads/` (fuera de git). Cambiá la raíz con
+  `DATA__ROOT`.
+- `Ai__Provider=fake` devuelve una camisa de lino determinística, sin red ni
+  costo. Para Gemini: `AI__PROVIDER=gemini` y `AI__APIKEY`.
+- En `Development`, `Digest__Provider=fake` devuelve ocho notas de ejemplo;
+  para feeds reales usá `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`.
 
 ### 2. Frontend
 
@@ -102,17 +130,20 @@ pnpm dev
 
 - App: `http://localhost:5173`.
 - Por defecto consume `http://localhost:5210`; para apuntar a otro backend:
+  `VITE_API_URL=http://localhost:5210 pnpm dev`.
 
-```bash
-VITE_API_URL=http://localhost:5210 pnpm dev
+### 3. Modo demo
+
+La demo siembra 14 prendas y un digest de 8 notas, usa una raíz propia y no
+acepta escrituras:
+
+```powershell
+$env:DEMO__ENABLED='true'
+dotnet run --project backend/FashionApp.Api
 ```
 
-En la instancia personal, guardá el token una vez en `sessionStorage` con la
-clave `app_token`; el cliente lo envía como `X-App-Token`.
-
-En `Production`, la instancia personal **no arranca** sin `App:Token` (salvo
-`App:AllowAnonymous=true`, pensado solo para entornos descartables). En
-`Development` y `Testing` el token puede quedar vacío para trabajar localmente.
+También se puede levantar todo con Docker: `docker compose up --build`
+(app en `http://localhost:8080`). Ver [docs/deploy.md](docs/deploy.md).
 
 ## Tests y verificación
 
@@ -120,9 +151,9 @@ En `Production`, la instancia personal **no arranca** sin `App:Token` (salvo
 # Backend
 dotnet test backend/FashionApp.sln
 
-# Frontend: unitarios (Vitest)
+# Frontend: unitarios
 cd frontend
-pnpm test
+pnpm vitest run
 
 # Frontend: typecheck + build de producción
 pnpm build
@@ -130,176 +161,71 @@ pnpm build
 # Frontend: lint
 pnpm lint
 
-# E2E (levanta backend aislado + Vite automáticamente)
+# E2E (levanta API aislada + Vite automáticamente)
 pnpm exec playwright test
 ```
 
-Playwright levanta **ambos** servidores (`webServer` en
-`frontend/playwright.config.ts`): Vite en `5173` y la API en `5210`. La API de
-test usa `frontend/../.test-data` (SQLite + uploads) y ese directorio se borra al
-inicio de cada run, así que el E2E nunca toca la base de desarrollo `data/`.
-Antes de correrlo, detené cualquier backend o Vite propio en esos puertos: el
-runner no reutiliza servidores existentes para no mutar datos reales.
+Playwright usa `.test-data` (SQLite + uploads) y lo borra al inicio de cada
+run; nunca toca `data/`. La API de test corre con IA y feeds fake, sin token y
+con `Demo__Enabled=false`. Los specs cubren:
 
-El backend de test arranca con `Ai__Provider=fake`, `Digest__Provider=fake`,
-`Digest__GenerateOnStartup=false`, `Digest__AdminSecret=test-secret`,
-`Digest__Feeds=[]`, `Demo__Enabled=false`, `App__Token` vacío y rutas de
-almacenamiento propias. El E2E cubre tres flujos críticos. **Guardarropa:**
-subir foto → ver la confirmación → editar color/nombre → guardar → ver la
-prenda en la grilla, además del spinner, el reanálisis sin guardar, la
-cancelación sin fila nueva, el rechazo de archivos de más de 10 MB y el modo
-demo de solo lectura. **Outfits:** un helper siembra tres prendas (análisis
-multipart + confirmación JSON) para no depender del diálogo de alta, luego
-sugiere un outfit, lo guarda y verifica la tarjeta con `source=ai`; el segundo
-test crea un outfit a mano, edita el nombre y comprueba el cambio. **Hoy:** el
-test siembra una prenda con `styleTags: ['minimalista']`, ejecuta
-`POST /api/digest/refresh` con `X-Admin-Secret`, abre `/` y comprueba el hero,
-`Resumen de prueba`, el link externo de la primera nota y la miniatura de la
-prenda relacionada. Los fixtures de outfits y digest (`camisa-lino.webp`,
-`pantalon-beige.webp`, `zapatillas-blancas.webp`) son copias de los assets de
-demo. Como todos los specs comparten la misma API y base, el runner usa un solo
-worker; los nombres llevan un sufijo único y el digest se regenera por fecha
-(si un retry cae en el cooldown, el test acepta `429` y reutiliza el digest
-vigente).
+- **Guardarropa:** subir foto, confirmar, editar, ver la prenda, spinner,
+  reanálisis, cancelación, rechazo de archivos > 10 MB y demo de solo lectura.
+- **Outfits:** sugerir, guardar con `source=ai`, crear a mano y renombrar.
+- **Hoy:** sembrar una prenda, regenerar el digest con `X-Admin-Secret` y
+  verificar el hero, el link externo y la miniatura relacionada.
+
+**Capturas de portfolio** (no corren en CI; `CAPTURE=1` las habilita):
+
+```bash
+cd frontend
+CAPTURE=1 pnpm exec playwright test tests/screenshots.spec.ts
+```
+
+Escribe seis PNG en `docs/screenshots/` (desktop 1440×900 y mobile 390×844 para
+Hoy, Guardarropa y Outfits). Sin `CAPTURE=1` el spec se salta.
 
 ## Variables de entorno
 
-Las variables de .NET siguen el formato `Sección__Clave`. Las del front deben
-empezar con `VITE_`.
+Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
+`VITE_`.
 
 | Variable | Default | Descripción |
 |---|---|---|
-| `DATA__ROOT` | `../../data` | Raíz única de datos, relativa al proyecto de la API. De ella se derivan SQLite y uploads. |
+| `DATA__ROOT` | `../../data` | Raíz única de datos; de ella derivan SQLite y uploads. |
 | `APP__TOKEN` | vacío | Token estático de la instancia personal. Obligatorio en `Production` (salvo `APP__ALLOWANONYMOUS=true`). |
 | `APP__ALLOWANONYMOUS` | `false` | Escape hatch explícito para una instancia personal sin token en `Production`. |
-| `DEMO__ENABLED` | `false` | Modo demo: siembra datos, usa su propia raíz y rechaza todas las escrituras con `403`. |
-| `DEMO__DATAROOT` | `<DATA__ROOT>/demo` | Raíz de datos de la demo. No puede apuntar a la base ni a los uploads personales. |
+| `DEMO__ENABLED` | `false` | Modo demo: siembra datos, usa su propia raíz y rechaza escrituras con `403`. |
+| `DEMO__DATAROOT` | `<DATA__ROOT>/demo` | Raíz de datos de la demo. No puede coincidir con la base ni los uploads personales. |
 | `AI__PROVIDER` | `fake` | `fake` o `gemini`. |
 | `AI__APIKEY` | vacío | Obligatoria cuando `AI__PROVIDER=gemini`. |
-| `AI__MODEL` | `gemini-2.0-flash` | Modelo usado por el analizador real. |
-| `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA permitidos por día (calendario UTC). |
-| `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits permitidas por día (calendario UTC). Comparte el contador atómico en SQLite. |
-| `DIGEST__PROVIDER` | `rss` (`fake` en `Development`) | `rss` lee feeds reales; `fake` devuelve ocho notas determinísticas sin red. |
-| `DIGEST__FEEDS` | `[]` | Lista de `{ "Name", "Url" }` de feeds RSS/Atom. Si queda vacía en `Development`, se usa el feed fake; en otros entornos no se genera digest. |
-| `DIGEST__RUNAT` | `07:00` | Hora local del servidor a la que corre el job diario. |
-| `DIGEST__GENERATEONSTARTUP` | `true` | Genera el digest al arrancar si todavía no existe el de hoy. |
-| `DIGEST__MAXITEMS` | `10` | Máximo de notas persistidas por digest (la IA pide 6–10). |
+| `AI__MODEL` | `gemini-2.0-flash` | Modelo del analizador real. |
+| `AI__DAILYANALYSISLIMIT` | `50` | Análisis de IA por día (calendario UTC). |
+| `AI__DAILYSUGGESTIONLIMIT` | `20` | Sugerencias de outfits por día. Comparte el contador atómico en SQLite. |
+| `DIGEST__PROVIDER` | `rss` (`fake` en `Development`) | `rss` lee feeds reales; `fake` devuelve notas determinísticas sin red. |
+| `DIGEST__FEEDS` | `[]` | Lista de `{ "Name", "Url" }` de feeds RSS/Atom. |
+| `DIGEST__RUNAT` | `07:00` | Hora local del servidor del job diario. |
+| `DIGEST__GENERATEONSTARTUP` | `true` | Genera el digest al arrancar si falta el de hoy. |
+| `DIGEST__MAXITEMS` | `10` | Máximo de notas persistidas por digest. |
 | `DIGEST__MAXAGEHOURS` | `48` | Descarta notas publicadas hace más de estas horas. |
-| `DIGEST__ADMINSECRET` | vacío | Secreto para `POST /api/digest/refresh` (`X-Admin-Secret`). Vacío deja el refresh deshabilitado. |
-| `RATELIMITING__ENABLED` | `true` | Rate limit por IP para `/api/garments`, `/api/outfits/suggest` y `/api/digest/refresh`. En `Testing` queda desactivado salvo `RATELIMITING__ENABLED=true` explícito. |
-| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP en esas rutas; el exceso responde `429` (`ProblemDetails` en español) con `Retry-After`. |
-| `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. Si se define, se usa tal cual. |
-| `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes para CI/tests. |
-| `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS. |
-| `VITE_API_URL` | `http://localhost:5210` | URL de la API que usa el front (solo build/dev del front). |
+| `DIGEST__ADMINSECRET` | vacío | Secreto de `POST /api/digest/refresh` (`X-Admin-Secret`). Vacío lo deshabilita. |
+| `RATELIMITING__ENABLED` | `true` | Rate limit por IP en `/api/garments`, `/api/outfits/suggest` y `/api/digest/refresh`. |
+| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP; el exceso responde `429` + `Retry-After`. |
+| `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. |
+| `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes. |
+| `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS en desarrollo. |
+| `VITE_API_URL` | `http://localhost:5210` | URL de la API usada en build/dev del front (`/` dentro del contenedor). |
+| `ASPNETCORE_ENVIRONMENT` | `Development` | `Production` activa las validaciones de seguridad del contenedor. |
 
-`App:Token` no es autenticación real: es un secreto compartido para una
+`APP__TOKEN` no es autenticación real: es un secreto compartido para una
 instancia personal y así queda documentado.
 
-## Demo
+## Deploy
+
+La app se publica como **un solo contenedor** en Fly.io (región `gru`, puerto
+`8080`, volumen `fashion_data` en `/data`, health check `GET /api/health`).
 
 ```bash
-# Linux/macOS
-DEMO__ENABLED=true dotnet run --project backend/FashionApp.Api
-```
-
-```powershell
-# PowerShell
-$env:DEMO__ENABLED='true'
-dotnet run --project backend/FashionApp.Api
-```
-
-- Siembra 14 prendas de ejemplo desde
-  `backend/FashionApp.Api/Infrastructure/Demo/SeedAssets/manifest.json` y un
-  digest de muestra de 8 notas con etiquetas de estilo, sin feeds ni IA.
-- Usa una raíz propia: `data/demo` por defecto (base `data/demo/fashion.db` y
-  uploads `data/demo/uploads`). Nunca comparte `data/fashion.db` ni
-  `data/uploads` con la instancia personal.
-- Al arrancar verifica que todas las prendas de la base pertenezcan al manifiesto
-  de demo; si encuentra una prenda personal, se niega a arrancar con un error en
-  español.
-- El guardarropa y el digest se siembran solo si su tabla está vacía: reiniciar
-  no duplica nada y el digest sembrado es independiente del guardarropa.
-- En demo, la UI y el backend son de solo lectura (las escrituras devuelven
-  `403`), el job diario no arranca y no se llama a la IA.
-- Para volver al estado inicial: detené el backend y borrá **solo**
-  `data/demo/`. No borres `data/` completo: ahí vive tu base personal.
-
-## Docker (imagen de producción)
-
-El `Dockerfile` es multi-stage: compila la SPA con Node 22 + pnpm, publica la API
-con .NET 10 y arma la imagen final sobre `aspnet:10.0`. La imagen sirve API y SPA
-en un solo origen (`wwwroot` junto al binario), escucha en `8080` y corre como el
-usuario no root `app`.
-
-```bash
-# Construir y levantar la demo local
-docker compose up --build
-
-# Estado del healthcheck (GET /api/health)
-docker compose ps
-
-# Detener sin tocar los datos
-docker compose down
-
-# Detener y borrar el volumen de datos (reset de la demo)
-docker compose down -v
-```
-
-- App: `http://localhost:8080`; health: `http://localhost:8080/api/health`.
-- La base SQLite y las imágenes viven en el volumen nombrado `fashion_data`
-  montado en `/data` (`DATA__ROOT=/data`), así que recrear el contenedor no
-  borra la demo.
-- `docker-compose.yml` arranca en `Production` con la demo aislada
-  (`DEMO__DATAROOT=/data/demo`), IA y feeds fake y sin generación de digest al
-  arrancar.
-- El build compila el frontend con `VITE_API_URL=/`, así que el bundle llama a
-  `/api/*` y `/media/*` en el mismo origen; no queda compilado
-  `http://localhost:5210`.
-- `wwwroot` se genera dentro de la imagen y **no** se commitea.
-
-### Instancia personal (sin demo)
-
-La imagen arranca en `Production`: una instancia personal **exige**
-`APP__TOKEN` y, sin él, el contenedor se niega a arrancar (por diseño). También
-conviene usar un volumen propio para no mezclar los datos personales con la
-demo.
-
-```bash
-# Imagen local (o `docker compose build`)
-docker build -t fashion-app:local .
-
-docker run --rm -p 8080:8080 \
-  -e DEMO__ENABLED=false \
-  -e APP__TOKEN='un-secreto-largo' \
-  -e AI__PROVIDER=gemini \
-  -e AI__APIKEY='tu-clave' \
-  -v fashion_personal_data:/data \
-  fashion-app:local
-```
-
-- En la UI, guardá el mismo token en `sessionStorage` con la clave `app_token`.
-- Sin `AI__APIKEY`, usá `AI__PROVIDER=fake` solo en entornos descartables: en
-  `Production` el análisis real de fotos depende de Gemini.
-- El digest real necesita `DIGEST__PROVIDER=rss` y `DIGEST__FEEDS__...`; el
-  default del contenedor es `rss`, así que sin feeds no se genera digest.
-- `docker compose` levanta la demo; para la instancia personal usá `docker run`
-  o un override de compose con estos mismos valores.
-
-> **Handoff:** este entorno de desarrollo no tiene Docker, así que el
-> `docker build` real no se ejecutó acá. La validación local cubrió
-> `pnpm --dir frontend build` y `dotnet publish` (más un smoke del publish con
-> `dist` copiado a `wwwroot`). El primer build de la imagen es parte del handoff
-> de deploy; ver `docs/deploy.md`.
-
-## Deploy en Fly.io
-
-El repo incluye `fly.toml` para publicar la demo pública como un solo contenedor:
-región `gru`, puerto interno `8080`, HTTPS forzado, volumen `fashion_data` en
-`/data`, una Machine de 512 MB y health check `GET /api/health`.
-
-```bash
-# Resumen; los comandos completos están en docs/deploy.md
 fly auth login
 fly apps create fashion-app-demo
 fly volumes create fashion_data --region gru --size 1
@@ -307,225 +233,155 @@ fly deploy
 fly open
 ```
 
-- La demo corre con IA y feeds fake, sin generación de digest al arrancar y en
-  solo lectura, usando `/data/demo` para no tocar nunca datos personales.
-- La instancia personal se activa con secretos:
-  `APP__TOKEN`, `AI__PROVIDER=gemini`, `AI__APIKEY` y `DEMO__ENABLED=false`.
-- Reset de la demo: borrar **solo** `/data/demo` por SSH y reiniciar; nunca
-  `/data` completo.
-- Comandos completos, verificación y límites: [docs/deploy.md](docs/deploy.md).
+La demo corre con IA y feeds fake, solo lectura. La instancia personal se
+activa con secretos (`APP__TOKEN`, `AI__PROVIDER=gemini`, `AI__APIKEY`,
+`DEMO__ENABLED=false`).
+
+Comandos completos, verificación, reset de demo y límites:
+**[docs/deploy.md](docs/deploy.md)**.
 
 > **Handoff:** no hay `flyctl` ni credenciales de Fly.io en este entorno, así que
-> **nada se deployó desde acá**. Crear la app, el volumen y ejecutar `fly deploy`
-> queda a cargo del dueño de la cuenta; `docs/deploy.md` tiene los comandos
-> exactos, la verificación y las limitaciones.
+> **nada se deployó desde acá**. El build de la imagen, la creación de la app y
+> el volumen quedan a cargo del dueño de la cuenta.
 
-## Endpoints implementados
+## Rendimiento
+
+Presupuesto del diseño: **LCP < 2,5 s · INP < 200 ms · CLS < 0,1** en p75
+móvil; lecturas de API p95 < 300 ms.
+
+### Bundle del build de producción
+
+Medido con `pnpm build` (Vite 8, React 19). Los nombres llevan hash y cambian
+en cada build.
+
+| Recurso | Tamaño | Gzip |
+|---|---|---|
+| JS de entrada (`index-<hash>.js`) | 287,73 KB | 91,05 KB |
+| CSS (`index-<hash>.css`) | 32,33 KB | 6,55 KB |
+| Chunk de `/hoy` (`TodayPage-<hash>.js`) | 7,54 KB | 2,43 KB |
+| Cliente API compartido (`api-<hash>.js`) | 10,81 KB | 3,85 KB |
+| Chunk de `/guardarropa` | 25,45 KB | 7,26 KB |
+| Chunk de `/outfits` | 32,78 KB | 8,27 KB |
+| Labels compartidos (`garmentLabels-<hash>.js`) | 1,26 KB | 0,49 KB |
+| `index.html` | 0,65 KB | 0,38 KB |
+
+La primera carga de `/` transfiere el JS de entrada + el chunk de Hoy + el
+cliente API: unos **97,3 KB gzip** de JavaScript y 6,55 KB gzip de CSS. El
+guardarropa y los outfits se cargan bajo demanda.
+
+### Lighthouse móvil
+
+Medición local sobre el build de producción real: `pnpm build`, copia de
+`dist/` a `wwwroot/`, `dotnet publish -c Release` y la app publicada en
+`Production` con la demo sembrada. Lighthouse 13.6, preset móvil por defecto
+(red y CPU simuladas), tres corridas sobre `/`:
+
+| Métrica | Mediana | Rango de las 3 corridas | Presupuesto |
+|---|---|---|---|
+| Performance score | 93 | 89–95 | — |
+| LCP | 3,22 s | 2,90–3,22 s | < 2,5 s |
+| TBT (proxy de laboratorio de INP) | 54 ms | 51–58 ms | — |
+| CLS | 0,060 | 0,060–0,119 | < 0,1 |
+| Speed Index | 1,64 s | 1,56–1,64 s | — |
+| FCP | 0,96 s | 0,96 s | — |
+
+- **INP no se midió**: es una métrica de campo (requiere interacción real). En
+  laboratorio se reporta **TBT** como proxy; no se inventa un valor de INP.
+- **El LCP quedó por encima del presupuesto de 2,5 s** en este entorno. El
+  elemento LCP es el subtítulo de la portada renderizado después de la consulta
+  del digest; FCP es 0,96 s y la diferencia es trabajo de JS bajo throttling
+  móvil simulado. No se cambió código de performance en esta fase.
+- El **CLS** varió entre corridas; la peor fue 0,119 y la mediana 0,060.
+- Los números dependen de hardware, red y carga de la máquina. No son una
+  medición de campo ni de usuarios reales.
+
+## Límites conocidos
+
+- **Deploy no ejecutado.** No hay `flyctl` ni credenciales en este entorno. La
+  configuración, el Dockerfile y el handoff están listos; `docs/deploy.md`
+  documenta qué se validó y qué no.
+- **Imagen Docker no construida acá.** No hay Docker disponible. Sí se validó
+  `pnpm build`, `dotnet publish` y un smoke de producción local con la SPA en
+  `wwwroot`, `/api/health`, `/api/digest/today`, `/media/*` y el fallback de
+  rutas.
+- **Fotos de demo genéricas.** Los assets del manifiesto son placeholders
+  generados con Magick.NET y llevan la palabra «Demo» impresa. Reemplazarlos
+  por fotos con licencia antes de un portfolio público.
+- **Demo con IA fake.** La demo pública no representa la calidad del análisis
+  real: usa el analizador y los feeds determinísticos para tener costo cero.
+- **Token, no autenticación.** `APP__TOKEN` es un secreto compartido de un solo
+  usuario; no hay cuentas, sesiones ni permisos por usuario.
+- **SQLite y una sola Machine.** No hay escritura concurrente multi-nodo ni
+  escalado horizontal; el volumen vive en una región y el deploy reinicia la
+  Machine.
+- **Métricas de laboratorio.** INP no está medido y el LCP local supera el
+  presupuesto; Lighthouse no reemplaza una medición de campo.
+- **CI sin remoto acá.** El workflow de GitHub Actions está versionado, pero
+  este clon no tiene remoto configurado: los jobs corren cuando el repo se
+  publique en GitHub.
+
+## Estructura del repositorio
+
+```
+.
+├── backend/
+│   ├── FashionApp.Api/          API .NET, dominio, features, infraestructura
+│   │   ├── Domain/              Garment, Outfit, Digest, cuotas
+│   │   ├── Features/            endpoints de garments, outfits, digest y security
+│   │   └── Infrastructure/      EF Core, storage, IA, feeds, demo, rate limit
+│   └── FashionApp.Tests/        xUnit + WebApplicationFactory
+├── frontend/
+│   ├── src/                     React 19 + Vite
+│   │   ├── features/            digest (Hoy), wardrobe, outfits
+│   │   └── lib/                 cliente API y tipos
+│   └── tests/                   Playwright E2E + capturas de portfolio
+├── docs/
+│   ├── architecture.md          diagramas y decisiones técnicas
+│   ├── deploy.md                handoff de Fly.io
+│   ├── plan-fase-*.md           planes de implementación
+│   ├── Fashion App.md           spec y bitácora
+│   └── screenshots/             capturas desktop y mobile
+├── .github/workflows/ci.yml     backend + frontend + e2e
+├── Dockerfile                   imagen multi-stage (Node + .NET)
+├── docker-compose.yml           demo local con volumen
+├── fly.toml                     demo pública en Fly.io
+└── README.md
+```
+
+## API
+
+<details>
+<summary>Endpoints principales</summary>
 
 | Método | Ruta | Función |
 |---|---|---|
 | GET | `/api/health` | Estado del servicio y hora UTC. |
 | GET | `/api/config` | Flags públicos de runtime (`demo`). |
-| GET | `/api/digest/today` | Último digest disponible (hoy o el anterior) con `ETag`/`304`. Público: `relatedGarments` solo incluye prendas si la instancia no tiene token o el request trae un `X-App-Token` válido. `404` si no hay ninguno. |
-| POST | `/api/digest/refresh` | Regenera el digest de hoy. Requiere `X-Admin-Secret`, tiene un cooldown de 1 hora (`429` + `Retry-After`) y está bloqueado en demo. |
-| GET | `/api/garments` | Listado paginado. Filtros: `category`, `color`, `season`, `cursor`. |
-| POST | `/api/garments/analyze` | Multipart (`file`): normaliza, guarda la imagen content-addressed y devuelve `contentHash`, URLs y `analysis` **sin crear la prenda**. Consume cuota de IA. |
-| POST | `/api/garments/confirm` | JSON con los valores confirmados: crea la prenda usando los archivos del hash. No llama a la IA ni consume cuota. Deduplica por hash (`200`). |
-| POST | `/api/garments` | Alta multipart de compatibilidad (`file`): analiza y persiste en un solo request. El frontend ya no lo usa. |
-| PATCH | `/api/garments/{id}` | Corrige nombre, categoría, color (`colorName`/`colorHex`), formalidad, temporadas y etiquetas. |
-| DELETE | `/api/garments/{id}` | Archiva (baja lógica; no borra archivos). |
-| POST | `/api/garments/{id}/reanalyze` | Vuelve a analizar y devuelve una propuesta **sin** sobrescribir la prenda. |
-| GET | `/api/outfits` | Outfits guardados con sus prendas, orden `favorito` y luego `creado` descendente. Incluye prendas archivadas para conservar el collage. |
-| POST | `/api/outfits` | Crea un outfit manual validado. Acepta `source` (`manual` por defecto o `ai`) y `rationale` opcional. |
-| PATCH | `/api/outfits/{id}` | Edita nombre, ocasión, favorito o reemplaza las prendas (revalida las reglas). |
-| DELETE | `/api/outfits/{id}` | Elimina el outfit y sus ítems; nunca borra prendas. |
-| POST | `/api/outfits/suggest` | Sugerencias por `occasion` y `weather` opcional (`frio`, `templado`, `calor`; si falta o está vacío se asume `templado`). Devuelve borradores ya normalizados y sin persistir. Consume cuota `suggestion`. |
-| GET | `/media/{hash}.webp` | Imagen normalizada, con caché inmutable. |
+| GET | `/api/digest/today` | Último digest disponible con `ETag`/`304`; `404` si no hay ninguno. |
+| POST | `/api/digest/refresh` | Regenera el digest de hoy con `X-Admin-Secret`, cooldown de 1 h y bloqueo en demo. |
+| GET | `/api/garments` | Listado paginado con filtros `category`, `color`, `season`, `cursor`. |
+| POST | `/api/garments/analyze` | Multipart: normaliza, guarda la imagen y analiza **sin** crear la prenda. |
+| POST | `/api/garments/confirm` | Crea la prenda con los valores confirmados; deduplica por hash. |
+| PATCH | `/api/garments/{id}` | Corrige nombre, categoría, color, formalidad, temporadas y etiquetas. |
+| DELETE | `/api/garments/{id}` | Archiva la prenda (baja lógica). |
+| POST | `/api/garments/{id}/reanalyze` | Reanaliza y devuelve una propuesta sin sobrescribir. |
+| GET | `/api/outfits` | Outfits con sus prendas, favoritos primero. |
+| POST | `/api/outfits` | Crea un outfit manual o guarda una sugerencia (`source=ai`). |
+| PATCH | `/api/outfits/{id}` | Edita nombre, ocasión, favorito o reemplaza las prendas. |
+| DELETE | `/api/outfits/{id}` | Elimina el outfit y sus ítems. |
+| POST | `/api/outfits/suggest` | Sugerencias por `occasion` y `weather`; no persiste. |
+| GET | `/media/{hash}.webp` | Imagen normalizada con caché inmutable. |
 | GET | `/media/{hash}-thumb.webp` | Miniatura de 400 px. |
 
-Los errores usan `ProblemDetails` (RFC 7807) con mensajes en español. Cuando la
-IA responde `{"error":"no_garment"}`, los endpoints de análisis devuelven `422`
-("No se detectó una prenda") en vez de guardar una prenda vacía. Los errores de
-composición de outfits devuelven `400`, una prenda inexistente o archivada
-devuelve `409` y la cuota agotada devuelve `429` con `Retry-After` (expuesto por
-CORS para que la UI lo muestre en minutos). El refresh del digest responde `401`
-sin secreto, `403` con un secreto inválido o no configurado, `429` durante el
-cooldown y `502` si la generación no produce un digest (el anterior se conserva).
-`/api/digest/today` responde `404` mientras no exista ningún digest.
+Los errores usan `ProblemDetails` (RFC 7807) en español. El alta tiene un
+endpoint de compatibilidad (`POST /api/garments`) que analiza y persiste en un
+request, pero la UI usa `analyze` + `confirm`.
 
-### Flujo de sugerencias
+</details>
 
-1. `GET /api/garments` (paginado por cursor) llena el guardarropa del panel. Si
-   no existe al menos un conjunto válido —`top` + `bottom` + `shoes`, o `dress`
-   + `shoes`, con formalidad dentro de 2 puntos— el formulario queda deshabilitado
-   y explica el motivo.
-2. `POST /api/outfits/suggest` devuelve hasta tres borradores con `name`,
-   `garmentIds`, `occasion` y `rationale`. Nada se persiste.
-3. Cada tarjeta muestra el collage con las fotos reales y la razón de la
-   propuesta. "Guardar" llama a `POST /api/outfits` con `source=ai` y el
-   `rationale`; el listado se invalida y la tarjeta aparece con la insignia IA.
-4. Una respuesta vacía muestra "sin resultados"; los errores se pueden
-   reintentar y el `429` informa cuántos minutos faltan para el reinicio UTC.
-5. El servidor valida toda propuesta contra prendas activas antes de devolverla:
-   ids inventados o composiciones inválidas se descartan y, si no queda ninguna,
-   se usa el generador por reglas.
+## Documentación
 
-### Flujo de la portada (Hoy)
-
-1. Al abrir `/`, `GET /api/digest/today` devuelve el último digest disponible
-   (el de hoy o el anterior si el job todavía no corrió). Si responde `404`, la
-   UI muestra "Todavía no hay resumen de hoy" y un acceso al guardarropa.
-2. El hero muestra la fecha larga en español, el resumen editorial y la cantidad
-   de novedades.
-3. Cada tarjeta muestra la imagen (con `loading="lazy"` y dimensiones estables;
-   si no hay imagen, un bloque de color), el título como link externo
-   (`target="_blank"` + `rel="noopener noreferrer"`), la fuente, el resumen
-   propio, los chips de estilo y hasta tres miniaturas de prendas relacionadas.
-   Si no hay prendas que compartan etiquetas, la sección no se renderiza.
-4. La relación es una intersección entre `DigestItem.StyleTags` y
-   `Garment.StyleTags` con el mismo vocabulario cerrado: sin otra llamada de IA.
-5. **Privacidad:** las prendas son datos personales. Con `App:Token` configurado,
-   `relatedGarments` llega vacío salvo que el request incluya un `X-App-Token`
-   válido; la respuesta usa `Cache-Control: private` y `Vary: X-App-Token`.
-6. La respuesta incluye `ETag` y admite `304`; el front cachea cinco minutos con
-   TanStack Query. Los skeletons tienen altura estable y un error ofrece
-   "Reintentar".
-7. **Regla legal/editorial:** la ingesta no copia el cuerpo de los artículos.
-   Solo se guarda título, un resumen propio y el link a la fuente, y la fuente
-   se muestra siempre en la tarjeta.
-
-## Decisiones de la Fase 0–1
-
-- **Alta en dos pasos: analizar → confirmar.** `POST /api/garments/analyze`
-  normaliza, guarda la imagen content-addressed y analiza sin crear la prenda.
-  Cerrar el diálogo después del análisis deja solo archivos reutilizables, nunca
-  una fila huérfana. `POST /api/garments/confirm` crea la prenda con los valores
-  confirmados, sin IA ni consumo de cuota.
-- **Compatibilidad del alta directa.** `POST /api/garments` sigue existiendo con
-  su contrato anterior (analiza y persiste en un request), pero la UI usa el
-  flujo analyze + confirm.
-- **Reanálisis no destructivo.** `reanalyze` devuelve una propuesta; el front
-  vuelve a llenar el formulario y solo persiste si el usuario guarda.
-- **Edición explícita.** Si la foto ya existe, el formulario actualiza la prenda
-  con `PATCH /api/garments/{id}`; si es nueva, confirma con
-  `POST /api/garments/confirm`.
-- **Imágenes content-addressed.** El nombre sale del hash del contenido:
-  re-subir la misma foto no crea otra prenda ni gasta otra llamada de IA.
-  Si la prenda estaba archivada, volver a subir/confirmar la foto restaura la
-  misma fila con los valores confirmados en lugar de crear un duplicado.
-- **Filtros completos.** La UI expone categoría, color (texto libre con
-  sugerencias de los colores cargados) y temporada. El color se debouncea 300 ms
-  para no disparar un request por tecla.
-- **Paginación acumulativa.** El guardarropa usa `useInfiniteQuery` y el botón
-  "Cargar más": nunca se pierden las páginas ya cargadas al cambiar de filtro.
-- **Vocabulario cerrado también en la UI.** Las etiquetas son chips de una lista
-  de 18 valores (máximo 4); confirm y PATCH validan longitudes, temporadas,
-  etiquetas y `colorHex` (`#RRGGBB`) y responden `400` en español si algo no
-  cumple. La IA sigue reparando respuestas parciales en vez de fallar.
-- **Privacidad de la foto.** El diálogo avisa en español que la imagen se envía
-  al proveedor de IA configurado para analizarla. Los tests usan `fake` y nunca
-  llaman a un proveedor real.
-- **Color con muestra.** El formulario acepta `colorName` y `colorHex`; el hex se
-  guarda en confirm/PATCH y la tarjeta lo usa para el círculo de color.
-- **Demo de solo lectura.** `GET /api/config` expone `{ demo }`; la UI oculta las
-  acciones de escritura y explica en español por qué no se puede subir.
-- **Sin librería de UI.** Tailwind 4 y componentes propios; rutas con
-  `React.lazy` para no cargar el guardarropa en la home.
-- **IA fake en tests.** Ni los tests de backend ni el E2E llaman a un proveedor
-  real.
-
-## Decisiones de la Fase 2
-
-- **Outfits como collage de prendas reales.** `Outfit` guarda ítems con `Layer`
-  y `SortOrder`; el listado ordena por `IsFavorite` y `CreatedAt` y conserva las
-  fotos incluso si una prenda se archiva después.
-- **Sugerencias sin persistir.** `POST /api/outfits/suggest` devuelve borradores;
-  solo "Guardar" crea el outfit. `source` se persiste en minúsculas (`ai` o
-  `manual`), por eso el DTO expone el mismo vocabulario.
-- **Validación en dos capas.** La UI deshabilita Guardar con reglas locales
-  (composición + formalidad); el servidor revalida siempre y descarta propuestas
-  de IA con ids inventados o composiciones inválidas antes de responder.
-- **Cuota y caché de sugerencias.** La caché en memoria dura 10 minutos por
-  `occasion|weather|count|maxUpdatedAt` y no consume cuota; un miss consume
-  `Ai:DailySuggestionLimit` (default 20) y responde `429` con `Retry-After`.
-- **Fallback determinista.** Si el proveedor falla o devuelve propuestas
-  inválidas, se reintenta una vez y luego se usa el generador por reglas. Los
-  tests usan `Ai:Provider=fake` para que el E2E sea determinista.
-- **Límites de guardado en las sugerencias.** El servicio recorta los textos
-  (`name` 120, `occasion` 60, `rationale` 600), descarta las propuestas con más
-  de 5 prendas (nunca las trunca, para no ocultar ids repetidos) y limita la
-  respuesta a 3 borradores. Un borrador que deja de ser válido tras la
-  normalización se descarta, así que todo lo que se muestra o se cachea se
-  puede guardar con `POST /api/outfits`.
-- **Rate limit por IP.** `/api/garments` y `/api/outfits/suggest` comparten una
-  ventana fija de 60 solicitudes por minuto (configurable); el exceso devuelve
-  `429` con `ProblemDetails` en español y `Retry-After`.
-
-## Decisiones de la Fase 3
-
-- **Un digest por fecha.** El generador hace un upsert transaccional sobre
-  `Digest.Date`: si el día ya existe, borra sus ítems y los reinserta con el
-  nuevo resumen y `GeneratedAt`. Nunca quedan dos filas para la misma fecha ni
-  ítems huérfanos.
-- **La IA propone, el validador decide.** Las URLs que no estaban en los feeds,
-  las etiquetas fuera del vocabulario, los textos demasiado largos y los
-  duplicados se descartan en `DigestValidator`; nunca se persiste una nota
-  inventada ni el cuerpo de un artículo.
-- **Feed y resumen se configuran por separado.** `Digest:Provider` elige entre
-  `rss` y `fake` sin depender de `Ai:Provider`, así se puede usar un feed real
-  con resumen fake en desarrollo. `Digest:Feeds` vacío usa el feed de ejemplo
-  solo en `Development`; en otros entornos no se genera un digest vacío.
-- **Fallback al último digest.** Un feed caído, un XML inválido o una respuesta
-  de IA vacía no borran lo publicado: se conserva el digest anterior y el job
-  registra el error. `GET /api/digest/today` sirve el más reciente aunque no sea
-  de hoy.
-- **Privacidad del guardarropa.** `DigestMatching` solo se ejecuta si la
-  instancia no tiene token o el request trae uno válido. La respuesta se marca
-  `Cache-Control: private` y `Vary: X-App-Token` para que un proxy nunca mezcle
-  la vista personal con la anónima.
-- **Refresh administrativo con cooldown.** `POST /api/digest/refresh` exige
-  `X-Admin-Secret` con comparación de tiempo fijo, aplica el rate limit por IP y
-  un cooldown de una hora que devuelve `429` + `Retry-After`; el guard se libera
-  si la generación falla para no castigar el siguiente intento.
-- **Presupuesto de lectura.** La portada usa `ETag`/`304`, caché privada de cinco
-  minutos y consultas con `AsNoTracking` + proyección; el matching hace una sola
-  lectura de prendas activas por request, sin N+1.
-- **E2E determinista y reintentable.** El backend de test usa feeds y resumen
-  fake, `GenerateOnStartup=false` y un secreto fijo. El test siembra una prenda
-  con nombre único, tolera el `429` del cooldown en un retry y archiva su prenda
-  al terminar para no contaminar el fixture compartido con outfits.
-
-## Rendimiento
-
-Presupuesto del diseño: **LCP < 2,5 s · INP < 200 ms · CLS < 0,1** en p75 móvil;
-lecturas de API p95 < 300 ms.
-
-Estado medido del build de producción (`pnpm build`):
-
-| Recurso | Tamaño gzip |
-|---|---|
-| JS inicial (`index-*.js`) | ~91,1 KB |
-| CSS | ~6,6 KB |
-| Chunk de `/guardarropa` | ~7,3 KB (bajo demanda) |
-| Chunk de `/hoy` | ~2,4 KB (bajo demanda) |
-
-El JS inicial queda muy por debajo del presupuesto de 200 KB gzip.
-
-Medición local de Lighthouse 13.6 (preset móvil por defecto, build de
-producción servido con `pnpm preview` y backend fake):
-
-| Métrica | Resultado | Presupuesto |
-|---|---|---|
-| Performance score | 99 | — |
-| LCP | 2,13 s | < 2,5 s |
-| CLS | 0,055 | < 0,1 |
-| Total blocking time | 8 ms | — |
-| Speed Index | 1,30 s | — |
-
-Los números dependen del hardware y de la red local; se vuelven a medir en la
-fase de portfolio junto con las capturas del README.
-
-## Capturas
-
-Pendientes para la fase de portfolio: home, guardarropa con filtros, diálogo de
-alta y formulario de confirmación.
+- Spec y bitácora: [docs/Fashion App.md](docs/Fashion%20App.md)
+- Arquitectura: [docs/architecture.md](docs/architecture.md)
+- Deploy en Fly.io: [docs/deploy.md](docs/deploy.md)
+- Plan de la Fase 4: [docs/plan-fase-4.md](docs/plan-fase-4.md)
