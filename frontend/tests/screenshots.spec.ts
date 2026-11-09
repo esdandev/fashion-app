@@ -20,6 +20,7 @@ import type { APIRequestContext, Browser, Page } from '@playwright/test'
  */
 
 const API_URL = 'http://localhost:5210'
+const WEB_URL = 'http://localhost:5173'
 const ADMIN_SECRET = 'test-secret'
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const screenshotsDir = join(repoDir, 'docs', 'screenshots')
@@ -32,6 +33,13 @@ const demoAssetsDir = join(
   'SeedAssets',
 )
 const manifestPath = join(demoAssetsDir, 'manifest.json')
+// Absolute on purpose: `mediaUrl()` leaves absolute URLs untouched, and the
+// Vite dev server (not the API) serves the files in `frontend/public/`.
+const DEMO_NOTE_IMAGES = [
+  `${WEB_URL}/demo-note.webp`,
+  `${WEB_URL}/demo-note-2.webp`,
+  `${WEB_URL}/demo-note-3.webp`,
+]
 
 interface ManifestItem {
   name: string
@@ -289,17 +297,52 @@ async function captureAll(browser: Browser) {
         viewport.suffix === 'desktop'
           ? (capture.desktopHeight ?? viewport.viewport.height)
           : (capture.mobileHeight ?? viewport.viewport.height)
-      await page.setViewportSize({ width: viewport.viewport.width, height })
-      await page.goto(capture.path)
-      await capture.ready(page)
-      await page.waitForLoadState('networkidle')
-      await page.evaluate(() => document.fonts.ready)
-      await waitForImages(page)
+      const isHoy = capture.name === 'hoy'
 
-      await page.screenshot({
-        path: join(screenshotsDir, `${capture.name}-${viewport.suffix}.png`),
-        fullPage: false,
-      })
+      // Test-only enrichment: the fake feed has no images, so the Hoy cards
+      // would show empty gradients. The API and production code stay untouched.
+      if (isHoy) {
+        await page.route('**/api/digest/today', async (route) => {
+          const response = await route.fetch()
+          const digest = (await response.json()) as {
+            items?: Array<{ imageUrl?: string | null }>
+          }
+
+          if (Array.isArray(digest.items)) {
+            digest.items = digest.items.map((item, index) =>
+              index < DEMO_NOTE_IMAGES.length
+                ? { ...item, imageUrl: DEMO_NOTE_IMAGES[index] }
+                : item,
+            )
+          }
+
+          await route.fulfill({ response, json: digest })
+        })
+      }
+
+      try {
+        await page.setViewportSize({ width: viewport.viewport.width, height })
+        await page.goto(capture.path)
+        await capture.ready(page)
+        await page.waitForLoadState('networkidle')
+        await page.evaluate(() => document.fonts.ready)
+        await waitForImages(page)
+
+        if (isHoy) {
+          // The first three notes must render the intercepted image before the
+          // capture, otherwise a 404 would silently fall back to an empty card.
+          await expect(page.locator('article img[alt=""]')).toHaveCount(3)
+        }
+
+        await page.screenshot({
+          path: join(screenshotsDir, `${capture.name}-${viewport.suffix}.png`),
+          fullPage: false,
+        })
+      } finally {
+        if (isHoy) {
+          await page.unroute('**/api/digest/today')
+        }
+      }
     }
 
     await context.close()

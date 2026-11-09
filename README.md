@@ -195,7 +195,11 @@ Escribe seis PNG en `docs/screenshots/`: viewport desktop 1440×900 y mobile
 390×844, con el PNG mobile a 2× (780×1688). La portada **Hoy** usa un viewport
 más alto —1440×1100 desktop y 390×1050 mobile (PNG 780×2100)— para que se vea
 completa la tira «En tu guardarropa»; el resto de las capturas conserva el
-viewport estándar. Sin `CAPTURE=1` el spec se salta.
+viewport estándar. Para que las notas no queden con bloques vacíos, el spec
+intercepta `GET /api/digest/today` **solo durante la captura de Hoy** y asigna
+`imageUrl` a las primeras tres notas usando imágenes demo de
+`frontend/public/`; la API y el código de producción no cambian. Sin
+`CAPTURE=1` el spec se salta.
 
 ## Variables de entorno
 
