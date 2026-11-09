@@ -31,6 +31,7 @@ cd ..
 dotnet publish backend/FashionApp.Api -c Release -o .tmp/publish
 
 # 3. La SPA se copia DESPUÉS del publish, dentro de su wwwroot
+mkdir -p .tmp/publish/wwwroot
 cp -r frontend/dist/* .tmp/publish/wwwroot/
 ```
 
