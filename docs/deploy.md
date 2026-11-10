@@ -1,10 +1,12 @@
 # Deploy en Fly.io
 
-> **Estado: deploy ejecutado.** La demo pública corre en
-> **https://fashion-app-demo.fly.dev** desde el 2026-11-10, con la app
-> `fashion-app-demo`, el volumen `fashion_data` (1 GB, región `gru`) y una
-> Machine de 512 MB. Los comandos de abajo quedan como referencia para
-> recrear el entorno o desplegar la instancia personal.
+> **Handoff de deploy.** Este documento deja el deploy listo para que lo ejecute
+> el dueño de la cuenta. En el entorno de desarrollo de este repositorio **no
+> hay `flyctl` ni credenciales de Fly.io**: acá no se creó ninguna app, no se
+> subió ninguna imagen y no se ejecutó ningún deploy. Todos los comandos de abajo
+> se corren desde tu máquina, autenticado con tu propia cuenta. Los pasos que sí
+> se validaron en este entorno están listados en
+> [Qué se validó](#qué-se-validó-y-qué-no).
 
 La app se publica como **un solo contenedor**: la API .NET sirve la SPA compilada
 desde `wwwroot` y la API desde el mismo origen (puerto interno `8080`). SQLite y
