@@ -16,34 +16,13 @@ public sealed class ClientIpResolverTests
     }
 
     [Fact]
-    public void Fly_client_ip_wins_over_forwarded_for_and_the_socket_address()
-    {
-        var context = CreateContext();
-        context.Request.Headers[ClientIpResolver.FlyClientIpHeader] = "203.0.113.7";
-        context.Request.Headers[ClientIpResolver.ForwardedForHeader] =
-            "198.51.100.4, 10.0.0.2";
-
-        Assert.Equal("203.0.113.7", ClientIpResolver.Resolve(context));
-    }
-
-    [Fact]
-    public void Leftmost_forwarded_for_is_used_when_fly_header_is_missing()
+    public void Leftmost_forwarded_for_wins_over_the_socket_address()
     {
         var context = CreateContext();
         context.Request.Headers[ClientIpResolver.ForwardedForHeader] =
             " 203.0.113.9 , 10.0.0.1, 10.0.0.2";
 
         Assert.Equal("203.0.113.9", ClientIpResolver.Resolve(context));
-    }
-
-    [Fact]
-    public void Invalid_fly_header_falls_back_to_forwarded_for()
-    {
-        var context = CreateContext();
-        context.Request.Headers[ClientIpResolver.FlyClientIpHeader] = "not-an-ip";
-        context.Request.Headers[ClientIpResolver.ForwardedForHeader] = "203.0.113.10";
-
-        Assert.Equal("203.0.113.10", ClientIpResolver.Resolve(context));
     }
 
     [Fact]

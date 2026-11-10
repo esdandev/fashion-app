@@ -3,10 +3,10 @@
 **Fecha:** 2026-11-09
 **Entorno:** Windows, .NET 10.0.403, Node 24.22.1, pnpm 12.18.0.
 **Objetivo:** validar el mismo artefacto que se publicaría (SPA compilada
-servida por la API) sin Docker ni credenciales de Fly.io.
+servida por la API) sin Docker.
 
-Este smoke **no es un deploy**: no se creó ninguna app en Fly.io ni se subió
-ninguna imagen. El build de la imagen y el deploy real quedan como handoff.
+Este smoke **no es un deploy**: no se creó infraestructura ni se subió ninguna
+imagen.
 
 ## Preparación
 
@@ -78,13 +78,12 @@ los nombres con hash cambian en cada build. Lo estable es el `Cache-Control`.
 
 ## Lo que este smoke no cubre
 
-- **Build de la imagen Docker.** No hay Docker en este entorno; el `Dockerfile`
-  se valida en el handoff con `fly deploy`.
-- **Deploy en Fly.io.** Sin `flyctl` ni credenciales, no se creó app ni volumen.
-- **Proxy de Fly y TLS.** El smoke corre sobre `127.0.0.1`; la resolución de IP
-  detrás de `Fly-Client-IP`/`X-Forwarded-For` está cubierta por tests, no por
-  este smoke. La Machine debe quedar accesible solo por el proxy de Fly
-  (ver [deploy.md](deploy.md)).
+- **Build de la imagen Docker.** No hay Docker en este entorno, así que la
+  imagen no se construyó acá.
+- **Deploy real.** No se configuró ni ejecutó ningún host de producción.
+- **Proxy y TLS.** El smoke corre sobre `127.0.0.1`; la resolución de IP detrás
+  de `X-Forwarded-For` está cubierta por tests, no por este smoke. La app debe
+  quedar accesible solo a través del proxy de confianza.
 - **Lighthouse.** La medición de LCP está en [metrics/README.md](metrics/README.md);
   el LCP fuera de presupuesto queda aceptado como deuda en
   [perf-followup.md](perf-followup.md).

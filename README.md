@@ -79,7 +79,7 @@ portfolio, no un test de regresión.
 | Imágenes | Magick.NET (WebP, EXIF eliminado, miniaturas de 400 px) |
 | Motor de outfits | Reglas deterministas + armonía de color, sin IA |
 | Noticias | Feeds RSS/Atom + `BackgroundService` diario; resumen local con palabras clave |
-| Infra | Docker multi-stage, Fly.io, volumen `/data`, GitHub Actions |
+| Infra | Docker multi-stage, volumen `/data`, GitHub Actions |
 | Tests | xUnit + `WebApplicationFactory`, Vitest + Testing Library, Playwright, Lighthouse |
 
 ## Arquitectura
@@ -183,7 +183,7 @@ dotnet run --project backend/FashionApp.Api
 ```
 
 También se puede levantar todo con Docker: `docker compose up --build`
-(app en `http://localhost:8080`). Ver [docs/deploy.md](docs/deploy.md).
+(app en `http://localhost:8080`). Ver [docs/architecture.md](docs/architecture.md).
 
 ## Tests y verificación
 
@@ -261,7 +261,7 @@ Las variables de .NET usan `Sección__Clave`. Las del front deben empezar con
 | `DIGEST__MAXAGEHOURS` | `48` | Descarta notas publicadas hace más de estas horas. |
 | `DIGEST__ADMINSECRET` | vacío | Secreto de `POST /api/digest/refresh` (`X-Admin-Secret`). Vacío lo deshabilita. |
 | `RATELIMITING__ENABLED` | `true` | Rate limit por IP en `/api/garments`, `/api/outfits/suggest` y `/api/digest/refresh`. |
-| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP; el exceso responde `429` + `Retry-After`. Detrás del proxy usa `Fly-Client-IP` y luego el primer `X-Forwarded-For`. |
+| `RATELIMITING__PERMITLIMIT` | `60` | Solicitudes por minuto y por IP; el exceso responde `429` + `Retry-After`. Detrás de un proxy usa el primer `X-Forwarded-For` y, si falta, la dirección del socket. |
 | `CONNECTIONSTRINGS__DEFAULT` | derivada de `DATA__ROOT` | Override de SQLite para CI/tests. |
 | `STORAGE__ROOT` | `<DATA__ROOT>/uploads` | Override de la carpeta de imágenes. |
 | `CORS__ALLOWEDORIGIN` | `http://localhost:5173` | Único origen permitido por CORS en desarrollo. |
@@ -273,31 +273,16 @@ instancia personal y así queda documentado.
 
 ## Deploy
 
-La app se publica como **un solo contenedor** en Fly.io (región `gru`, puerto
-`8080`, volumen `fashion_data` en `/data`, health check `GET /api/health`).
-
-```bash
-fly auth login
-fly apps create fashion-app-demo
-fly volumes create fashion_data --region gru --size 1
-fly deploy
-fly open
-```
+El repositorio no ata el deploy a ningún proveedor. La app se puede ejecutar
+como **un solo contenedor** con `docker compose up --build`: la API sirve la SPA
+en el puerto `8080` y persiste SQLite e imágenes en el volumen `/data`.
 
 La demo corre con feeds fake y es de solo lectura. La instancia personal se
-activa con secretos (`APP__TOKEN`, `DEMO__ENABLED=false`). No hay claves de IA.
+activa con variables de entorno (`APP__TOKEN`, `DEMO__ENABLED=false`). No hay
+claves de IA.
 
-Comandos completos, verificación, reset de demo y límites:
-**[docs/deploy.md](docs/deploy.md)**.
-
-> **Handoff:** no hay `flyctl` ni credenciales de Fly.io en este entorno, así que
-> **nada se deployó desde acá**. El build de la imagen, la creación de la app y
-> el volumen quedan a cargo del dueño de la cuenta.
->
-> **Proxy de Fly:** el rate limit usa `Fly-Client-IP` y, si falta, el primer
-> `X-Forwarded-For`, antes de caer a la dirección del socket. La Machine debe
-> quedar accesible **solo** a través del proxy: una conexión directa permitiría
-> falsificar esos headers y saltear el límite por IP.
+No hay configuración de hosting ni credenciales versionadas: elegí el host de
+contenedores que prefieras y montá un volumen persistente en `/data`.
 
 ## Rendimiento
 
@@ -365,9 +350,9 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 
 ## Límites conocidos
 
-- **Deploy no ejecutado.** No hay `flyctl` ni credenciales en este entorno. La
-  configuración, el Dockerfile y el handoff están listos; `docs/deploy.md`
-  documenta qué se validó y qué no.
+- **Sin hosting configurado.** El repo no ata el deploy a ningún proveedor; el
+  `Dockerfile` y `docker-compose.yml` alcanzan para correrlo en cualquier host de
+  contenedores con un volumen persistente en `/data`.
 - **Imagen Docker no construida acá.** No hay Docker disponible. Sí se validó
   `pnpm build`, `dotnet publish` y un smoke de producción local con la SPA en
   `wwwroot`, `/api/health`, `/api/digest/today`, `/media/*` y el fallback de
@@ -375,22 +360,21 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 - **Fotos de demo genéricas.** Los assets del manifiesto son placeholders
   generados con Magick.NET y llevan la palabra «Demo» impresa. Reemplazarlos
   por fotos con licencia antes de un portfolio público.
-- **Demo con feeds fake.** La demo pública usa notas de ejemplo para tener
-  costo cero; los feeds reales se configuran con `DIGEST__FEEDS`.
+- **Demo con feeds fake.** La demo local usa notas de ejemplo para tener costo
+  cero; los feeds reales se configuran con `DIGEST__FEEDS`.
 - **Token, no autenticación.** `APP__TOKEN` es un secreto compartido de un solo
   usuario; no hay cuentas, sesiones ni permisos por usuario.
-- **SQLite y una sola Machine.** No hay escritura concurrente multi-nodo ni
-  escalado horizontal; el volumen vive en una región y el deploy reinicia la
-  Machine.
+- **SQLite y una sola instancia.** No hay escritura concurrente multi-nodo ni
+  escalado horizontal; el volumen vive en una región y cada reinicio conserva
+  los datos.
 - **Métricas de laboratorio y LCP fuera de presupuesto (aceptado).** INP no
   está medido y el LCP local (3,21 s) supera el presupuesto de 2,5 s. Lighthouse
   no reemplaza una medición de campo. La Fase 4 cierra con esa deuda
   **explícitamente aceptada** y el seguimiento accionable queda en
   [docs/perf-followup.md](docs/perf-followup.md); no se reescribió el hero en
   esta ola.
-- **CI sin remoto acá.** El workflow de GitHub Actions está versionado, pero
-  este clon no tiene remoto configurado: los jobs corren cuando el repo se
-  publique en GitHub.
+- **CI en GitHub Actions.** El workflow versionado corre backend, frontend y E2E
+  en cada push y pull request.
 
 ## Estructura del repositorio
 
@@ -409,7 +393,6 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 │   └── tests/                   Playwright E2E + capturas de portfolio
 ├── docs/
 │   ├── architecture.md          diagramas y decisiones técnicas
-│   ├── deploy.md                handoff de Fly.io
 │   ├── metrics/                 JSON de Lighthouse y entorno de medición
 │   ├── smoke.md                 smoke de producción local (resultados reales)
 │   ├── perf-followup.md         deuda aceptada de performance del hero de Hoy
@@ -419,7 +402,6 @@ mismo comando de Lighthouse. No se optimizó código de performance en la Fase 4
 ├── .github/workflows/ci.yml     backend + frontend + e2e
 ├── Dockerfile                   imagen multi-stage (Node + .NET)
 ├── docker-compose.yml           demo local con volumen
-├── fly.toml                     demo pública en Fly.io
 └── README.md
 ```
 
@@ -455,7 +437,6 @@ request multipart con todos los atributos de la prenda.
 
 - Spec y bitácora: [docs/Fashion App.md](docs/Fashion%20App.md)
 - Arquitectura: [docs/architecture.md](docs/architecture.md)
-- Deploy en Fly.io: [docs/deploy.md](docs/deploy.md)
 - Smoke de producción local: [docs/smoke.md](docs/smoke.md)
 - Métricas de Lighthouse: [docs/metrics/README.md](docs/metrics/README.md)
 - Seguimiento de performance: [docs/perf-followup.md](docs/perf-followup.md)

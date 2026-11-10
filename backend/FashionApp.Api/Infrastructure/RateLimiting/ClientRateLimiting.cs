@@ -79,8 +79,8 @@ public static class ClientRateLimiting
                 services.GetRequiredService<IConfiguration>(),
                 services.GetRequiredService<IHostEnvironment>());
 
-            // Fly terminates TLS and the app sees the edge address; use the
-            // forwarded client IP so visitors do not share a single bucket.
+            // A trusted proxy terminates TLS and the app sees its address; use
+            // the forwarded client IP so visitors do not share a single bucket.
             var partitionKey = ClientIpResolver.Resolve(httpContext);
 
             if (!clientOptions.Enabled)

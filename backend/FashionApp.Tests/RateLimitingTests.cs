@@ -41,31 +41,6 @@ public sealed class RateLimitingTests
     }
 
     [Fact]
-    public async Task Rate_limit_partitions_on_the_fly_client_ip_header()
-    {
-        using var factory = new TestAppFactory();
-        using var limited = EnableLimiter(factory, permitLimit: 2);
-        var client = limited.CreateClient();
-
-        // Two requests from one visitor fill the bucket, the third is rejected,
-        // and a different Fly client IP still gets its own window. Without the
-        // resolver every request would share the proxy address and the third
-        // request from the second visitor would already be a 429.
-        Assert.Equal(
-            HttpStatusCode.OK,
-            (await GetGarments(client, flyClientIp: "203.0.113.30")).StatusCode);
-        Assert.Equal(
-            HttpStatusCode.OK,
-            (await GetGarments(client, flyClientIp: "203.0.113.30")).StatusCode);
-        Assert.Equal(
-            HttpStatusCode.TooManyRequests,
-            (await GetGarments(client, flyClientIp: "203.0.113.30")).StatusCode);
-        Assert.Equal(
-            HttpStatusCode.OK,
-            (await GetGarments(client, flyClientIp: "203.0.113.31")).StatusCode);
-    }
-
-    [Fact]
     public async Task Rate_limit_falls_back_to_the_leftmost_forwarded_for()
     {
         using var factory = new TestAppFactory();
@@ -98,13 +73,4 @@ public sealed class RateLimitingTests
                     ["RateLimiting:Enabled"] = "true",
                     ["RateLimiting:PermitLimit"] = permitLimit.ToString()
                 })));
-
-    private static Task<HttpResponseMessage> GetGarments(
-        HttpClient client,
-        string flyClientIp)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/garments");
-        request.Headers.Add("Fly-Client-IP", flyClientIp);
-        return client.SendAsync(request);
-    }
 }

@@ -15,9 +15,6 @@ data/
 .test-data/
 .tmp/
 
-# Config local de deploy (puede tener valores propios)
-fly.personal.toml
-
 # SPA compilada por el build de Docker (no se commitea)
 wwwroot/
 

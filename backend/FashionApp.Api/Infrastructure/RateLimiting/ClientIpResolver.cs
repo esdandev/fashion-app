@@ -6,27 +6,21 @@ namespace FashionApp.Api.Infrastructure.RateLimiting;
 /// <summary>
 /// Resolves the visitor IP used as the rate-limit partition key.
 ///
-/// In production the app runs behind Fly.io's edge proxy, which terminates TLS:
+/// Behind a trusted reverse proxy that terminates TLS,
 /// <see cref="Microsoft.AspNetCore.Http.ConnectionInfo.RemoteIpAddress"/> is the
-/// proxy address, not the visitor. Fly injects <c>Fly-Client-IP</c>; when the app
-/// is behind another trusted proxy, the leftmost <c>X-Forwarded-For</c> entry is
-/// the next best signal. Both headers are trivially spoofable on a direct
-/// connection, so the Machine must only be reachable through Fly's proxy (no
-/// public IP/service bypassing the edge). See <c>docs/deploy.md</c>.
+/// proxy address, not the visitor. The leftmost <c>X-Forwarded-For</c> entry is
+/// the next best signal. The header is trivially spoofable on a direct
+/// connection, so the app should only be reachable through that proxy (no
+/// public IP bypassing it).
 /// </summary>
 public static class ClientIpResolver
 {
-    public const string FlyClientIpHeader = "Fly-Client-IP";
     public const string ForwardedForHeader = "X-Forwarded-For";
     public const string UnknownKey = "desconocida";
 
     public static string Resolve(HttpContext context)
     {
         var request = context.Request;
-
-        var flyIp = FirstHeaderEntry(request.Headers[FlyClientIpHeader]);
-        if (IsIpAddress(flyIp))
-            return flyIp!;
 
         var forwardedIp = FirstHeaderEntry(request.Headers[ForwardedForHeader]);
         if (IsIpAddress(forwardedIp))

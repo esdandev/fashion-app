@@ -398,8 +398,9 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | **4. Portfolio** | Pulido visual, datos de ejemplo, README con capturas, deploy y métricas. **Cerrada en código y verificación local** (2026-11-09). | Link público funcionando y Lighthouse móvil en verde. |
 
 > **Estado de la Fase 4:** cerrada en implementación y verificación local. El
-> deploy real (app, volumen y build en Fly.io) queda como handoff del dueño
-> porque este entorno no tiene `flyctl` ni credenciales. La verificación local
+> repo no ata el deploy a ningún proveedor: incluye `Dockerfile` y
+> `docker-compose.yml` para correr la app en cualquier host de contenedores. La
+> verificación local
 > está en [[smoke]] y el cierre incluye 265 tests backend, 51 frontend y 11 E2E.
 > El LCP de 3,21 s no cumple el presupuesto de 2,5 s y se acepta como deuda
 > documentada en [[perf-followup]].
@@ -455,7 +456,7 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 27 | El validador descarta notas sin título o sin resumen | Aceptar links sin resumen | El anti-objetivo del spec prohíbe un feed de links vacíos. |
 | 28 | El cooldown de refresh se libera si la generación lanza una excepción | Mantener el bloqueo una hora | Un fallo del proveedor no debe impedir reintentar cuando el servicio vuelve. |
 | 29 | Sin IA: alta manual por lotes y outfits por reglas | Gemini/OpenCode para análisis y sugerencias | Elimina claves, costos, errores de proveedor y dependencias externas; el catálogo queda 100% bajo control del usuario. |
-| 29 | Rate limit por IP real detrás del proxy: `Fly-Client-IP`, luego el primer `X-Forwarded-For`, luego la dirección del socket | Particionar por `RemoteIpAddress` | Fly termina TLS y el socket es el edge: sin resolver, todos los visitantes comparten un bucket. La Machine debe quedar accesible solo por el proxy, porque esos headers se falsifican en una conexión directa. |
+| 29 | Rate limit por IP real detrás de un proxy de confianza: primer `X-Forwarded-For`, luego la dirección del socket | Particionar por `RemoteIpAddress` | El proxy termina TLS y el socket es el edge: sin resolver, todos los visitantes comparten un bucket. La app debe quedar accesible solo por ese proxy, porque el header se falsifica en una conexión directa. |
 | 30 | Aceptar el LCP local de 3,21 s como deuda documentada de la Fase 4 | Reescribir el hero en esta ola | El resto del presupuesto se cumple (CLS 0,060; TBT 42–55 ms) y la causa del LCP todavía es una hipótesis; se prioriza cerrar deploy, demo, CI y documentación. La medición y el criterio de salida quedan en [[perf-followup]]. |
 | 31 | Adoptar el tema editorial-atelier en la SPA real | Mantener la UI neutra con tarjetas redondeadas | El modelo 01 de la exploración visual concentra la identidad del producto: papel cálido, Bodoni, vino, reglas finas y grillas tipo revista. Se aplicó con tokens y componentes reutilizables, sin cambiar el comportamiento ni los endpoints. |
 
@@ -470,7 +471,7 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-07 | Fase 0–1 implementada y verificada: 91 tests backend, 19 frontend, 8 E2E, build y lint limpios. Flujo final analyze → confirm, data root unificado y demo aislada. |
 | 2026-11-08 | Fase 2 implementada y verificada: outfits con ítems, reglas de composición, CRUD manual, sugerencias IA con validación, fallback por reglas, cuota por tipo y caché; panel de sugerencias, collage y edición en el front. 192 tests backend, 46 frontend y 10 E2E en verde. |
 | 2026-11-08 | Fase 3 implementada y verificada: digest diario desde RSS, resumen con IA validada, portada Hoy, matching por `StyleTags`, ETag, job diario y refresh admin con cooldown. 247 tests backend, 51 frontend y 11 E2E en verde. |
-| 2026-11-09 | Fase 4 cerrada en código y verificación local: SPA servida por la API, contenedor/compose, `fly.toml` y handoff de deploy, CI, capturas, video del flujo subir → analizar → confirmar y README final. Suite: 265 tests backend (254 previos + 11 de rate limit/caché), 51 frontend y 11 E2E; lint y build limpios. Smoke de producción local en [[smoke]]. El rate limit resuelve `Fly-Client-IP` → primer `X-Forwarded-For` → socket y la Machine debe quedar solo detrás del proxy de Fly. El LCP de 3,21 s se acepta como deuda documentada en [[perf-followup]]; el deploy real queda como handoff del dueño (sin credenciales en este entorno). |
+| 2026-11-09 | Fase 4 cerrada en código y verificación local: SPA servida por la API, contenedor/compose, CI, capturas, video del flujo subir → analizar → confirmar y README final. Suite: 265 tests backend (254 previos + 11 de rate limit/caché), 51 frontend y 11 E2E; lint y build limpios. Smoke de producción local en [[smoke]]. El rate limit resuelve primer `X-Forwarded-For` → socket y la app debe quedar solo detrás de un proxy de confianza. El LCP de 3,21 s se acepta como deuda documentada en [[perf-followup]]; el deploy queda a cargo del dueño. |
 | 2026-11-09 | Se agregó la eliminación de prendas desde la grilla y el collage de outfits pasó a un formato vertical tipo maniquí. La baja de prendas es lógica y los outfits guardados conservan la foto. |
 | 2026-11-09 | Corregido el modelo Gemini por defecto a `gemini-3.8-flash` (2.0 quedó retirado) y agregado diagnóstico de IA: log del error real del proveedor, `GET /api/ai/status` y `scripts/check-gemini.ps1`. |
 | 2026-11-09 | Agregado OpenCode Console como proveedor de IA (`AI__PROVIDER=opencode`): usa `https://opencode.ai/inference/google/v1beta/...` con bearer y `gemini-4-argon` por defecto; scripts `check-opencode` y documentación de la API key. |
@@ -479,3 +480,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-09 | Agregado `scripts/run-backend.ps1` para sortear Smart App Control: compila en Release y ejecuta el DLL sin el apphost `.exe`. |
 | 2026-11-09 | Eliminada la IA del producto: alta manual por lotes, outfits solo con reglas, digest con resumen del feed y etiquetas por palabras clave. Se borraron endpoints, clientes, cuotas y pruebas de IA. |
 | 2026-11-10 | Aplicado el tema editorial-atelier a la SPA: tokens de papel/tinta/vino, Bodoni para títulos, Gill Sans para UI, reglas finas y grillas sin tarjetas redondeadas. Se actualizaron Hoy, Guardarropa, Outfits, filtros, formularios y diálogos. Verificado en 1440/768/390 sin overflow ni texto menor a 10 px; 48 tests, lint, build y 11 E2E en verde. |
+| 2026-11-10 | Repo publicado en GitHub (`esdandev/fashion-app`, público). Se eliminó el deploy de prueba y también todos los archivos y referencias del proveedor en README, arquitectura, smoke y planes. GitHub queda como repositorio y CI, sin hosting. |

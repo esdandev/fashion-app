@@ -4,9 +4,9 @@
 
 **Goal:** Dejar la app lista para publicar como portfolio: un solo contenedor que sirve API + SPA, configuración de deploy con volumen persistente, demo aislada, CI, capturas y README final.
 
-**Architecture:** En producción, ASP.NET sirve la SPA compilada desde `wwwroot` y la API desde el mismo origen, con un volumen para SQLite e imágenes. El deploy queda preparado para Fly.io; la demo corre con `Demo:Enabled=true`, datos sembrados, IA fake y sin escritura. El deploy real lo ejecuta el dueño con su cuenta (no hay credenciales en este entorno).
+**Architecture:** En producción, ASP.NET sirve la SPA compilada desde `wwwroot` y la API desde el mismo origen, con un volumen para SQLite e imágenes. El deploy queda preparado para cualquier host de contenedores; la demo corre con `Demo:Enabled=true`, datos sembrados, IA fake y sin escritura. El deploy real lo ejecuta el dueño con su cuenta (no hay credenciales en este entorno).
 
-**Tech Stack:** .NET 10, React 19 + Vite, Docker multi-stage, Fly.io, GitHub Actions, Playwright, Lighthouse.
+**Tech Stack:** .NET 10, React 19 + Vite, Docker multi-stage, GitHub Actions, Playwright, Lighthouse.
 
 **Spec:** `00 - Projects/Fashion App/Fashion App.md`
 
@@ -17,7 +17,7 @@
 - [[#File Structure]]
 - [[#Task 1: SPA servida por la API y caché de estáticos]]
 - [[#Task 2: Imagen Docker y compose local]]
-- [[#Task 3: Configuración de Fly.io y handoff de deploy]]
+- [[#Task 3: Preparación para deploy en contenedores]]
 - [[#Task 4: CI de GitHub Actions]]
 - [[#Task 5: Capturas, README de portfolio y métricas]]
 - [[#Task 6: Verificación final y cierre]]
@@ -50,7 +50,6 @@
 Dockerfile
 .dockerignore
 docker-compose.yml
-fly.toml
 .github/workflows/ci.yml
 docs/screenshots/
 frontend/src/test-backend.mjs (o tests/test-backend.mjs)
@@ -179,71 +178,26 @@ git commit -m "chore: add production container and compose setup"
 
 ---
 
-### Task 3: Configuración de Fly.io y handoff de deploy
+### Task 3: Preparación para deploy en contenedores
 
 **Files:**
-- Create: `fly.toml`, `docs/deploy.md`
 - Modify: `README.md`
 
 **Interfaces:**
 - Consumes: imagen Docker, `DATA__ROOT`, demo config.
-- Produces: `fly.toml` con volumen `/data`, healthcheck, `force_https`; `docs/deploy.md` con comandos exactos para crear app, volumen, secretos y deployar; sección de reset de demo.
+- Produces: documentación para correr la app en cualquier host de contenedores con un volumen persistente en `/data`.
 
-- [ ] **Step 1: Escribir `fly.toml`**
+- [ ] **Step 1: Documentar la topología**
 
-```toml
-app = "fashion-app-demo"
-primary_region = "gru"
+Un solo contenedor en el puerto `8080`, con un volumen persistente montado en
+`/data`. La demo se activa con `DEMO__ENABLED=true`; la instancia personal con
+`APP__TOKEN` y `DEMO__ENABLED=false`.
 
-[build]
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = false
-  min_machines_running = 1
-
-[[mounts]]
-  source = "fashion_data"
-  destination = "/data"
-
-[env]
-  ASPNETCORE_ENVIRONMENT = "Production"
-  DATA__ROOT = "/data"
-  DEMO__ENABLED = "true"
-  DEMO__DATAROOT = "/data/demo"
-  AI__PROVIDER = "fake"
-  DIGEST__PROVIDER = "fake"
-  DIGEST__GENERATEONSTARTUP = "false"
-  APP__ALLOWANONYMOUS = "false"
-
-[[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
-  cpus = 1
-```
-
-- [ ] **Step 2: Escribir `docs/deploy.md`**
-
-Incluir:
-1. `winget install Fly.cli` o el instalador oficial; `fly auth login`.
-2. `fly apps create fashion-app-demo` (o `fly launch --no-deploy`).
-3. `fly volumes create fashion_data --region gru --size 1`.
-4. `fly deploy`.
-5. `fly open`.
-6. Persona: `fly secrets set APP__TOKEN=... AI__PROVIDER=gemini AI__APIKEY=... DEMO__ENABLED=false` y `fly deploy`.
-7. Reset de demo: `fly ssh console` + borrar `/data/demo`, o `fly apps restart`; nunca borrar `/data` personal.
-8. Verificación: `curl https://<app>.fly.dev/api/health`, `curl -I /` (no-cache), `/api/digest/today`.
-
-- [ ] **Step 3: Documentar límites**
-
-Sin credenciales ni `flyctl` en este entorno, el deploy real queda a cargo del dueño. El plan no promete un deploy ejecutado.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add fly.toml docs/deploy.md README.md
-git commit -m "docs: add Fly.io deployment configuration and handoff"
+git add README.md
+git commit -m "docs: document container deployment topology"
 ```
 
 ---
@@ -305,7 +259,7 @@ Diagrama Mermaid: navegador → API .NET → SQLite/uploads; jobs de RSS/IA; dem
 
 - [ ] **Step 4: README final**
 
-Secciones: qué es, capturas, features, stack, arquitectura, cómo correr local, tests, variables de entorno, deploy (link a `docs/deploy.md`), límites conocidos, estructura del repo.
+Secciones: qué es, capturas, features, stack, arquitectura, cómo correr local, tests, variables de entorno, deploy (topología de contenedores), límites conocidos, estructura del repo.
 
 - [ ] **Step 5: Medir**
 
@@ -355,6 +309,6 @@ git commit -m "docs: close phase 4 with smoke checklist and final status"
 
 ## Nota de handoff
 
-El deploy público requiere cuenta de Fly.io (o el host que elijas), un volumen persistente y, para la instancia personal, secretos de IA y token. Nada de eso se ejecuta desde este entorno. La fase deja el contenedor, la configuración, el CI y la documentación listos para que el deploy sea un puñado de comandos.
+El deploy público requiere un host de contenedores, un volumen persistente y, para la instancia personal, token. Nada de eso se ejecuta desde este entorno. La fase deja el contenedor, la configuración, el CI y la documentación listos para que el deploy sea un puñado de comandos.
 
 > **Estado:** Fase 4 implementada y verificada localmente el 2026-11-09 (265 tests backend, 51 frontend, 11 E2E). El deploy público y el build de la imagen quedan como handoff del dueño.

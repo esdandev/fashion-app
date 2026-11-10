@@ -104,19 +104,19 @@ demo. Así una demo pública nunca puede leer ni borrar datos personales.
 
 ```mermaid
 flowchart LR
-  Repo["Repositorio<br/>Dockerfile multi-stage"] --> Build["Build en Fly.io<br/>Node 22 + .NET 10"]
+  Repo["Repositorio<br/>Dockerfile multi-stage"] --> Build["Build Docker<br/>Node 22 + .NET 10"]
   Build --> Image["Imagen<br/>ASP.NET + wwwroot"]
-  Image --> Machine["Machine 8080<br/>gru · 512 MB"]
-  Volume[("Volumen fashion_data<br/>/data")] --> Machine
-  User["Navegador"] -->|"HTTPS 443"| Machine
-  Machine -->|"/api/health"| User
+  Image --> Container["Contenedor 8080<br/>512 MB"]
+  Volume[("Volumen persistente<br/>/data")] --> Container
+  User["Navegador"] -->|"HTTPS"| Proxy["Proxy / TLS del host"]
+  Proxy --> Container
+  Container -->|"/api/health"| Proxy
 ```
 
 - La imagen final corre como usuario `app`, escucha en `8080` y monta el
-  volumen `fashion_data` en `/data`; un redeploy no borra la demo.
-- `fly.toml` fija `force_https`, un health check y una Machine siempre
-  encendida. El deploy real lo ejecuta el dueño de la cuenta; los comandos
-  están en [deploy.md](deploy.md).
+  volumen de datos en `/data`; un redeploy no borra la demo.
+- El host de contenedores debe terminar TLS y enviar `X-Forwarded-For`. No hay
+  configuración de proveedor ni credenciales versionadas en el repo.
 
 ## Tests
 
