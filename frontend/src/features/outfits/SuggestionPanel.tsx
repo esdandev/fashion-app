@@ -157,26 +157,28 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
   return (
     <section
       aria-labelledby="suggestion-panel-title"
-      className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6"
+      className="border border-stone-300/80 bg-white p-4 sm:p-6"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-300/80 pb-4">
         <div>
+          <p className="editorial-kicker">Motor de reglas</p>
           <h2
             id="suggestion-panel-title"
-            className="font-display text-xl font-semibold tracking-tight text-stone-900"
+            className="mt-2 font-display text-3xl leading-none tracking-[-0.04em] text-ink"
           >
             Sugerencias de outfits
           </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            Elegí una ocasión y el clima. El motor de reglas propone combinaciones con tus
-            prendas; nada se guarda hasta que toques Guardar.
+          <p className="mt-2 max-w-2xl font-serif text-sm leading-relaxed text-stone-600">
+            Elegí una ocasión y el clima. El motor de reglas propone
+            combinaciones con tus prendas; nada se guarda hasta que toques
+            Guardar.
           </p>
         </div>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100"
+            className="editorial-btn-outline"
           >
             Cerrar
           </button>
@@ -185,19 +187,19 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
 
       <form
         onSubmit={handleSubmit}
-        className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+        className="mt-5 grid gap-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
       >
         <label
           htmlFor={`${idPrefix}-occasion`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+          className="flex flex-col gap-1"
         >
-          Ocasión
+          <span className="editorial-label">Ocasión</span>
           <select
             id={`${idPrefix}-occasion`}
             value={occasion}
             onChange={(event) => setOccasion(event.target.value)}
             disabled={isFormDisabled}
-            className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="editorial-field"
           >
             {OCCASION_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -207,11 +209,8 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
           </select>
         </label>
 
-        <label
-          htmlFor={`${idPrefix}-weather`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
-        >
-          Clima
+        <label htmlFor={`${idPrefix}-weather`} className="flex flex-col gap-1">
+          <span className="editorial-label">Clima</span>
           <select
             id={`${idPrefix}-weather`}
             value={weather}
@@ -219,7 +218,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
               setWeather(event.target.value as OutfitWeather)
             }
             disabled={isFormDisabled}
-            className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="editorial-field"
           >
             {WEATHER_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -232,7 +231,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
         <button
           type="submit"
           disabled={isFormDisabled || suggestMutation.isPending}
-          className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="editorial-btn"
         >
           {suggestMutation.isPending ? 'Generando…' : 'Generar'}
         </button>
@@ -241,7 +240,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
       {wardrobeQuery.isPending && (
         <p
           role="status"
-          className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-500"
+          className="mt-5 border border-stone-300/80 bg-stone-50 p-4 font-serif text-sm text-stone-600"
         >
           Cargando tu guardarropa…
         </p>
@@ -250,7 +249,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
       {wardrobeQuery.isError && (
         <div
           role="alert"
-          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+          className="mt-5 border border-red-200 bg-red-50 p-4 font-sans text-sm text-red-900"
         >
           <p className="font-medium">No pudimos cargar tu guardarropa.</p>
           <p className="mt-1 text-red-800">
@@ -261,7 +260,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
           <button
             type="button"
             onClick={() => void wardrobeQuery.refetch()}
-            className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 font-medium text-red-900 transition-colors hover:bg-red-100"
+            className="editorial-btn-outline mt-3 border-red-300 text-red-900 hover:bg-red-900"
           >
             Reintentar
           </button>
@@ -273,7 +272,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
         !canMakeOutfit && (
           <p
             role="note"
-            className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            className="mt-5 border-l-2 border-sage bg-stone-50 py-2 pl-3 font-serif text-sm text-stone-700"
           >
             {wardrobe.length === 0
               ? 'Tu guardarropa está vacío: subí prendas para recibir sugerencias.'
@@ -282,16 +281,19 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
         )}
 
       {suggestMutation.isPending && (
-        <div className="mt-5 space-y-3" aria-busy="true">
-          <p role="status" className="text-sm text-stone-500">
+        <div className="mt-6 space-y-3" aria-busy="true">
+          <p
+            role="status"
+            className="font-serif text-sm text-stone-600 italic"
+          >
             Buscando combinaciones…
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {Array.from({ length: 2 }, (_, index) => (
               <div
                 key={index}
                 aria-hidden="true"
-                className="h-48 animate-pulse rounded-2xl bg-stone-100"
+                className="h-52 animate-pulse border border-stone-300/80 bg-stone-100"
               />
             ))}
           </div>
@@ -301,9 +303,9 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
       {suggestError && !suggestMutation.isPending && (
         <div
           role="alert"
-          className={`mt-5 rounded-xl border p-4 text-sm ${
+          className={`mt-6 border p-4 font-sans text-sm ${
             suggestErrorIsQuota
-              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              ? 'border-amber-300 bg-amber-50 text-amber-900'
               : 'border-red-200 bg-red-50 text-red-900'
           }`}
         >
@@ -317,7 +319,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
             <button
               type="button"
               onClick={() => suggestMutation.mutate()}
-              className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 font-medium text-red-900 transition-colors hover:bg-red-100"
+              className="editorial-btn-outline mt-3 border-red-300 text-red-900 hover:bg-red-900"
             >
               Reintentar
             </button>
@@ -330,7 +332,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
         drafts.length === 0 && (
           <p
             role="status"
-            className="mt-5 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500"
+            className="mt-6 border border-dashed border-stone-400 bg-stone-50 px-4 py-10 text-center font-serif text-sm text-stone-600"
           >
             No encontramos combinaciones para esa ocasión y clima. Probá con
             otro clima u otra ocasión.
@@ -338,19 +340,19 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
         )}
 
       {drafts.length > 0 && !suggestMutation.isPending && (
-        <div className="mt-5 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-display text-lg font-semibold tracking-tight text-stone-900">
+        <div className="mt-6 space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-stone-300/80 pb-2">
+            <h3 className="font-display text-2xl leading-none tracking-[-0.03em] text-ink">
               Outfit sugerido
             </h3>
             {savedKeys.length > 0 && (
-              <p role="status" className="text-sm text-emerald-700">
+              <p role="status" className="font-serif text-sm text-sage">
                 Outfit guardado en tu lista.
               </p>
             )}
           </div>
 
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2">
             {drafts.map((draft) => {
               const key = draftKey(draft)
               const isSaved = savedKeys.includes(key)
@@ -364,20 +366,20 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
                   <article
                     data-testid="suggestion-card"
                     aria-label={draft.name}
-                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"
+                    className="flex h-full flex-col border border-stone-300/80 bg-white"
                   >
                     <OutfitCollage
                       items={itemsFor(draft)}
                       name={draft.name}
                     />
                     <div className="flex flex-1 flex-col gap-2 p-4">
-                      <h4 className="font-medium text-stone-900">
+                      <h4 className="font-display text-[22px] leading-tight tracking-[-0.02em] text-ink">
                         {draft.name}
                       </h4>
-                      <p className="text-sm text-stone-600">
+                      <p className="font-serif text-sm leading-relaxed text-stone-600">
                         {draft.rationale}
                       </p>
-                      <p className="text-xs text-stone-400">
+                      <p className="editorial-meta uppercase">
                         {draft.occasion
                           ? `Ocasión: ${draft.occasion}`
                           : 'Cualquier ocasión'}{' '}
@@ -388,12 +390,12 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
                           )?.label
                         }
                       </p>
-                      <div className="mt-auto pt-2">
+                      <div className="mt-auto pt-3">
                         <button
                           type="button"
                           onClick={() => handleSave(draft)}
                           disabled={isSaved || saveMutation.isPending}
-                          className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                          className="editorial-btn"
                         >
                           {isSaved
                             ? 'Guardado'
@@ -410,7 +412,7 @@ export function SuggestionPanel({ onClose }: SuggestionPanelProps) {
           </ul>
 
           {saveMutation.error && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="font-serif text-sm text-red-700">
               {saveMutation.error instanceof ApiError
                 ? saveMutation.error.message
                 : 'No pudimos guardar el outfit. Revisá tu conexión e intentá de nuevo.'}

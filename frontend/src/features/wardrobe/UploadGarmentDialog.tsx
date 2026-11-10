@@ -171,7 +171,7 @@ export function UploadGarmentDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isSaving) {
@@ -183,14 +183,18 @@ export function UploadGarmentDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+        className="flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden border border-ink bg-paper shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-stone-200 p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4 border-b border-ink/60 p-5 sm:p-6">
           <div>
-            <h2 id={titleId} className="font-display text-2xl font-semibold text-stone-900">
+            <p className="editorial-kicker">Alta manual</p>
+            <h2
+              id={titleId}
+              className="mt-2 font-display text-4xl leading-none tracking-[-0.045em] text-ink"
+            >
               Subir prendas
             </h2>
-            <p className="mt-1 text-sm text-stone-500">
+            <p className="mt-2 font-serif text-sm text-stone-600">
               Elegí una o varias fotos y completá los datos de cada prenda.
             </p>
           </div>
@@ -198,7 +202,7 @@ export function UploadGarmentDialog({
             type="button"
             onClick={close}
             disabled={isSaving}
-            className="rounded-full p-2 text-stone-500 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border border-stone-400 px-2.5 py-1 font-sans text-lg leading-none text-stone-600 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Cerrar"
           >
             ×
@@ -206,11 +210,11 @@ export function UploadGarmentDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center transition-colors hover:border-stone-400 hover:bg-stone-100">
-            <span className="text-sm font-medium text-stone-800">
+          <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-stone-400 bg-stone-50 px-4 py-8 text-center transition-colors hover:border-oxblood hover:bg-white">
+            <span className="font-sans text-[11px] font-semibold tracking-[0.14em] text-ink uppercase">
               Seleccionar fotos
             </span>
-            <span className="mt-1 text-xs text-stone-500">
+            <span className="mt-1 font-serif text-xs text-stone-600">
               JPEG, PNG o WebP. Hasta 10 MB por imagen. Podés elegir varias.
             </span>
             <input
@@ -225,13 +229,16 @@ export function UploadGarmentDialog({
           </label>
 
           {fileError && (
-            <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+            <p
+              role="alert"
+              className="mt-3 border-l-2 border-gold bg-amber-50 p-3 font-serif text-sm text-amber-900"
+            >
               {fileError}
             </p>
           )}
 
           {drafts.length === 0 ? (
-            <p className="mt-6 text-center text-sm text-stone-500">
+            <p className="mt-6 text-center font-serif text-sm text-stone-500 italic">
               Todavía no elegiste fotos.
             </p>
           ) : (
@@ -239,7 +246,7 @@ export function UploadGarmentDialog({
               {drafts.map((draft) => (
                 <li
                   key={draft.key}
-                  className="rounded-2xl border border-stone-200 bg-white p-4"
+                  className="border border-stone-300/80 bg-white p-4"
                 >
                   <div className="flex flex-col gap-4 sm:flex-row">
                     <img
@@ -247,7 +254,7 @@ export function UploadGarmentDialog({
                       alt={`Vista previa de ${draft.file.name}`}
                       width={96}
                       height={96}
-                      className="size-24 shrink-0 rounded-xl object-cover"
+                      className="size-24 shrink-0 border border-stone-300/80 object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <GarmentForm
@@ -260,12 +267,12 @@ export function UploadGarmentDialog({
                   </div>
 
                   {draft.status === 'saved' && (
-                    <p className="mt-3 text-sm font-medium text-emerald-700">
+                    <p className="mt-3 font-sans text-xs font-medium tracking-[0.08em] text-sage uppercase">
                       Guardada.
                     </p>
                   )}
                   {draft.status === 'error' && draft.error && (
-                    <p role="alert" className="mt-3 text-sm text-red-700">
+                    <p role="alert" className="mt-3 font-serif text-sm text-red-700">
                       {draft.error}
                     </p>
                   )}
@@ -275,8 +282,8 @@ export function UploadGarmentDialog({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 p-5 sm:p-6">
-          <p className="text-xs text-stone-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/60 p-5 sm:p-6">
+          <p className="editorial-meta uppercase">
             {drafts.length === 0
               ? 'Sin fotos seleccionadas.'
               : `${drafts.length} ${drafts.length === 1 ? 'foto' : 'fotos'} · ${pendingCount} pendientes`}
@@ -286,7 +293,7 @@ export function UploadGarmentDialog({
               type="button"
               onClick={close}
               disabled={isSaving}
-              className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="editorial-btn-outline"
             >
               Cerrar
             </button>
@@ -294,7 +301,7 @@ export function UploadGarmentDialog({
               type="button"
               onClick={() => void saveAll()}
               disabled={isSaving || pendingCount === 0}
-              className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="editorial-btn"
             >
               {isSaving ? 'Guardando…' : 'Guardar todas'}
             </button>

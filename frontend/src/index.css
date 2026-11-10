@@ -2,21 +2,114 @@
 
 @theme {
   --font-sans:
-    ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  --font-display: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+    "Gill Sans", "Gill Sans MT", "Trebuchet MS", Verdana, sans-serif;
+  --font-display:
+    "Bodoni MT", Didot, "Playfair Display", "Times New Roman", serif;
+  --font-serif: Georgia, Cambria, "Times New Roman", serif;
+
+  --color-paper: #f4f0e8;
+  --color-ink: #17130f;
+  --color-oxblood: #6b1f2b;
+  --color-sage: #8a9a7b;
+  --color-gold: #b08a4f;
+
+  /* The stone scale is remapped to the editorial paper/ink palette so the
+     existing utilities keep working without a second color system. */
+  --color-stone-50: #f4f0e8;
+  --color-stone-100: #ece6db;
+  --color-stone-200: #d8d0c2;
+  --color-stone-300: #bdb3a3;
+  --color-stone-400: #8c8273;
+  --color-stone-500: #736c61;
+  --color-stone-600: #5b5349;
+  --color-stone-700: #3d372f;
+  --color-stone-800: #26221c;
+  --color-stone-900: #17130f;
+  --color-stone-950: #0e0b08;
 }
 
 @layer base {
   html {
-    @apply bg-stone-50 text-stone-900 antialiased;
+    @apply bg-paper text-ink antialiased;
   }
 
   body {
-    @apply min-h-svh bg-stone-50;
+    @apply min-h-svh bg-paper font-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-family: var(--font-sans);
   }
 
   ::selection {
-    @apply bg-stone-900 text-stone-50;
+    @apply bg-oxblood text-paper;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-oxblood);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .editorial-kicker {
+    @apply font-sans text-[11px] font-medium tracking-[0.2em] text-oxblood uppercase;
+  }
+
+  .editorial-meta {
+    @apply font-sans text-[11px] tracking-[0.08em] text-stone-500;
+  }
+
+  .editorial-title {
+    @apply font-display font-normal leading-[0.85] tracking-[-0.055em] text-ink;
+    font-size: clamp(3.5rem, 9vw, 8.5rem);
+  }
+
+  .editorial-section-title {
+    @apply font-display font-normal leading-[0.9] tracking-[-0.045em] text-ink;
+    font-size: clamp(2.6rem, 5.5vw, 4.8rem);
+  }
+
+  .editorial-surface {
+    @apply border border-stone-300/80 bg-white;
+  }
+
+  .editorial-rule {
+    @apply border-t border-stone-300/80;
+  }
+
+  .editorial-btn {
+    @apply inline-flex items-center justify-center bg-ink px-4 py-2.5 font-sans text-[11px] font-semibold tracking-[0.14em] text-paper uppercase transition-colors hover:bg-oxblood disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .editorial-btn-outline {
+    @apply inline-flex items-center justify-center border border-ink bg-transparent px-4 py-2.5 font-sans text-[11px] font-semibold tracking-[0.14em] text-ink uppercase transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .editorial-field {
+    @apply w-full border-0 border-b border-stone-400 bg-transparent px-0 py-2 font-sans text-sm text-ink transition-colors focus:border-oxblood focus:ring-0 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .editorial-label {
+    @apply font-sans text-[10px] font-semibold tracking-[0.14em] text-stone-500 uppercase;
+  }
+
+  .editorial-tag {
+    @apply inline-flex border border-stone-400 px-2 py-0.5 font-sans text-[10px] tracking-[0.04em] text-stone-600;
+  }
+
+  .editorial-link {
+    @apply font-sans text-[11px] tracking-[0.08em] uppercase underline-offset-4 hover:text-oxblood hover:underline;
   }
 }

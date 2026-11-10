@@ -182,7 +182,7 @@ export function OutfitBuilder({
         <div className="grid gap-4 sm:grid-cols-2">
           <label
             htmlFor={`${idPrefix}-name`}
-            className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+            className="editorial-label flex flex-col gap-1"
           >
             Nombre
             <input
@@ -195,13 +195,13 @@ export function OutfitBuilder({
               }}
               maxLength={120}
               placeholder="Ej: Look de trabajo"
-              className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none"
+              className="editorial-field"
             />
           </label>
 
           <label
             htmlFor={`${idPrefix}-occasion`}
-            className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+            className="editorial-label flex flex-col gap-1"
           >
             Ocasión
             <input
@@ -211,7 +211,7 @@ export function OutfitBuilder({
               onChange={(event) => setOccasion(event.target.value)}
               maxLength={60}
               placeholder="Ej: trabajo, cena, casual"
-              className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none"
+              className="editorial-field"
             />
           </label>
         </div>
@@ -219,7 +219,7 @@ export function OutfitBuilder({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label
             htmlFor={`${idPrefix}-search`}
-            className="flex flex-1 flex-col gap-1 text-xs font-medium text-stone-500"
+            className="editorial-label flex flex-1 flex-col gap-1"
           >
             Buscar prendas
             <input
@@ -228,13 +228,13 @@ export function OutfitBuilder({
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar por nombre"
-              className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none"
+              className="editorial-field"
             />
           </label>
 
           <label
             htmlFor={`${idPrefix}-category`}
-            className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+            className="editorial-label flex flex-col gap-1"
           >
             Categoría
             <select
@@ -243,7 +243,7 @@ export function OutfitBuilder({
               onChange={(event) =>
                 setCategoryFilter(event.target.value as '' | GarmentCategory)
               }
-              className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none sm:w-auto"
+              className="editorial-field sm:w-auto"
             >
               <option value="">Todas</option>
               {CATEGORY_OPTIONS.map((option) => (
@@ -258,7 +258,7 @@ export function OutfitBuilder({
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="space-y-4">
             {groups.length === 0 && (
-              <p className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
+              <p className="border border-dashed border-stone-400 bg-stone-50 px-4 py-8 text-center font-serif text-sm text-stone-600">
                 {wardrobe.length === 0
                   ? 'Tu guardarropa está vacío: subí prendas para armar un outfit.'
                   : 'No hay prendas con esa búsqueda.'}
@@ -267,7 +267,7 @@ export function OutfitBuilder({
 
             {groups.map((group) => (
               <fieldset key={group.value}>
-                <legend className="mb-2 text-xs font-semibold tracking-wide text-stone-500 uppercase">
+                <legend className="editorial-label mb-2 w-full border-b border-stone-300/80 pb-1">
                   {group.label}
                 </legend>
                 <ul className="grid gap-2 sm:grid-cols-2">
@@ -279,10 +279,10 @@ export function OutfitBuilder({
                       <li key={garment.id}>
                         <label
                           htmlFor={inputId}
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-2.5 transition-colors ${
+                          className={`flex cursor-pointer items-center gap-3 border p-2.5 transition-colors ${
                             isSelected
-                              ? 'border-stone-900 bg-stone-50'
-                              : 'border-stone-200 bg-white hover:border-stone-400'
+                              ? 'border-oxblood bg-stone-100'
+                              : 'border-stone-300/80 bg-white hover:border-stone-500'
                           }`}
                         >
                           <input
@@ -290,7 +290,7 @@ export function OutfitBuilder({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleGarment(garment.id)}
-                            className="size-4 shrink-0 accent-stone-900"
+                            className="size-4 shrink-0 accent-oxblood"
                           />
                           <img
                             src={mediaUrl(garment.thumbUrl)}
@@ -299,13 +299,13 @@ export function OutfitBuilder({
                             height={40}
                             loading="lazy"
                             decoding="async"
-                            className="size-10 shrink-0 rounded-lg object-cover"
+                            className="size-10 shrink-0 border border-stone-300/80 object-cover"
                           />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm text-stone-900">
+                            <span className="block truncate font-display text-[17px] leading-tight text-ink">
                               {garment.name}
                             </span>
-                            <span className="block truncate text-[11px] text-stone-500">
+                            <span className="editorial-meta block truncate uppercase">
                               {categoryLabel(garment.category)} · Formalidad{' '}
                               {garment.formality}
                             </span>
@@ -321,20 +321,20 @@ export function OutfitBuilder({
             {archivedSelection.length > 0 && (
               <section
                 aria-label="Prendas archivadas"
-                className="rounded-xl border border-amber-200 bg-amber-50 p-3"
+                className="border-l-2 border-gold bg-stone-50 p-3"
               >
-                <h3 className="text-xs font-semibold tracking-wide text-amber-900 uppercase">
+                <h3 className="editorial-label">
                   Prendas archivadas del outfit original
                 </h3>
                 <ul className="mt-2 space-y-1.5">
                   {archivedSelection.map((garment) => (
                     <li
                       key={garment.id}
-                      className="flex items-center justify-between gap-3 text-sm text-amber-900"
+                      className="flex items-center justify-between gap-3 font-serif text-sm text-stone-700"
                     >
                       <span className="min-w-0">
                         <span className="block truncate">{garment.name}</span>
-                        <span className="block text-[11px] text-amber-800">
+                        <span className="editorial-meta block uppercase">
                           Archivada · ya no está en el guardarropa
                         </span>
                       </span>
@@ -342,7 +342,7 @@ export function OutfitBuilder({
                         type="button"
                         onClick={() => toggleGarment(garment.id)}
                         aria-label={`Quitar ${garment.name}`}
-                        className="shrink-0 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100"
+                        className="editorial-btn-outline shrink-0 px-2.5 py-1 text-[10px]"
                       >
                         Quitar
                       </button>
@@ -354,14 +354,14 @@ export function OutfitBuilder({
           </div>
 
           <aside className="space-y-3">
-            <h3 className="text-xs font-semibold tracking-wide text-stone-500 uppercase">
+            <h3 className="editorial-label border-b border-stone-300/80 pb-1">
               Vista previa
             </h3>
             <OutfitCollage
               items={previewItems}
               name={trimmedName || 'Vista previa del outfit'}
             />
-            <p className="text-xs text-stone-500">
+            <p className="editorial-meta uppercase">
               {submittableSelection.length === 1
                 ? '1 prenda seleccionada'
                 : `${submittableSelection.length} prendas seleccionadas`}
@@ -370,7 +370,7 @@ export function OutfitBuilder({
               <button
                 type="button"
                 onClick={clearSelection}
-                className="text-xs font-medium text-stone-500 underline-offset-4 transition-colors hover:text-stone-900 hover:underline"
+                className="editorial-link text-stone-500"
               >
                 Limpiar selección
               </button>
@@ -378,28 +378,28 @@ export function OutfitBuilder({
           </aside>
         </div>
 
-        <div className="space-y-2 border-t border-stone-200 pt-4">
+        <div className="space-y-2 border-t border-stone-300/80 pt-4">
           {willDropArchived && (
             <p
               role="note"
-              className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"
+              className="border-l-2 border-gold bg-stone-50 px-3 py-2 font-serif text-sm text-stone-700"
             >
               Al guardar se quitarán las prendas archivadas: ya no están en el
               guardarropa.
             </p>
           )}
           {!validation.canSave && validation.message && (
-            <p role="status" className="text-sm text-amber-800">
+            <p role="status" className="font-serif text-sm text-gold">
               {validation.message}
             </p>
           )}
           {nameError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="font-serif text-sm text-red-700">
               {nameError}
             </p>
           )}
           {saveError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="font-serif text-sm text-red-700">
               {saveError}
             </p>
           )}
@@ -408,7 +408,7 @@ export function OutfitBuilder({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              className="editorial-btn"
             >
               {isSaving ? 'Guardando…' : 'Guardar outfit'}
             </button>
@@ -417,7 +417,7 @@ export function OutfitBuilder({
                 type="button"
                 onClick={onCancel}
                 disabled={isSaving}
-                className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="editorial-btn-outline"
               >
                 Cancelar
               </button>

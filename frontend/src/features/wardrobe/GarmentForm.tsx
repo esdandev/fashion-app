@@ -19,7 +19,7 @@ const FORMALITY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
 ]
 
 const inputClassName =
-  'w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none disabled:bg-stone-100 disabled:text-stone-500'
+  'editorial-field'
 
 export function GarmentForm({
   values,
@@ -53,7 +53,7 @@ export function GarmentForm({
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs text-stone-500">
+        <p className="font-serif text-xs text-stone-600">
           Completá los datos de esta prenda. Todos los campos son manuales.
         </p>
         {onRemove && (
@@ -61,7 +61,7 @@ export function GarmentForm({
             type="button"
             onClick={onRemove}
             disabled={disabled}
-            className="shrink-0 text-xs font-medium text-stone-500 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="editorial-link shrink-0 text-stone-500 hover:text-oxblood disabled:cursor-not-allowed disabled:opacity-50"
           >
             Quitar
           </button>
@@ -71,7 +71,7 @@ export function GarmentForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <label
           htmlFor={`${formId}-name`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500 sm:col-span-2"
+          className="editorial-label flex flex-col gap-1 sm:col-span-2"
         >
           Nombre
           <input
@@ -91,7 +91,7 @@ export function GarmentForm({
 
         <label
           htmlFor={`${formId}-category`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+          className="editorial-label flex flex-col gap-1"
         >
           Categoría
           <select
@@ -116,7 +116,7 @@ export function GarmentForm({
 
         <label
           htmlFor={`${formId}-color`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+          className="editorial-label flex flex-col gap-1"
         >
           Color
           <input
@@ -135,7 +135,7 @@ export function GarmentForm({
 
         <label
           htmlFor={`${formId}-color-hex`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+          className="editorial-label flex flex-col gap-1"
         >
           Color (hex)
           <span className="flex items-center gap-2">
@@ -157,14 +157,14 @@ export function GarmentForm({
               placeholder="#f5f5dc"
             />
           </span>
-          <span className="text-[11px] font-normal text-stone-400">
+          <span className="font-serif text-[11px] font-normal text-stone-500">
             Opcional. Se usa para la muestra de color de la tarjeta.
           </span>
         </label>
 
         <label
           htmlFor={`${formId}-formality`}
-          className="flex flex-col gap-1 text-xs font-medium text-stone-500"
+          className="editorial-label flex flex-col gap-1"
         >
           Formalidad
           <select
@@ -186,21 +186,19 @@ export function GarmentForm({
       </div>
 
       <fieldset disabled={disabled} className="border-0 p-0">
-        <legend className="mb-2 text-xs font-medium text-stone-500">
-          Temporada
-        </legend>
+        <legend className="editorial-label mb-2">Temporada</legend>
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           {SEASON_OPTIONS.map((option) => (
             <label
               key={option.value}
-              className="inline-flex items-center gap-2 text-sm text-stone-700"
+              className="inline-flex items-center gap-2 font-sans text-sm text-stone-700"
             >
               <input
                 type="checkbox"
                 checked={values.seasons.includes(option.value)}
                 onChange={() => toggleSeason(option.value)}
                 disabled={disabled}
-                className="size-4 rounded border-stone-300 text-stone-900 focus:ring-stone-400"
+                className="size-4 rounded-none border-stone-400 accent-oxblood"
               />
               {option.label}
             </label>
@@ -209,10 +207,8 @@ export function GarmentForm({
       </fieldset>
 
       <fieldset disabled={disabled} className="border-0 p-0">
-        <legend className="mb-1 text-xs font-medium text-stone-500">
-          Etiquetas
-        </legend>
-        <p className="mb-2 text-[11px] font-normal text-stone-400">
+        <legend className="editorial-label mb-1">Etiquetas</legend>
+        <p className="mb-2 font-serif text-[11px] font-normal text-stone-500">
           Elegí hasta 4 del vocabulario controlado.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -223,10 +219,10 @@ export function GarmentForm({
             return (
               <label
                 key={option.value}
-                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                className={`inline-flex cursor-pointer items-center gap-1.5 border px-2.5 py-1 font-sans text-[10px] tracking-[0.04em] transition-colors ${
                   selected
-                    ? 'border-stone-900 bg-stone-900 text-white'
-                    : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400'
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-stone-400 bg-white text-stone-700 hover:border-ink'
                 } ${disabledByLimit ? 'cursor-not-allowed opacity-40' : ''}`}
               >
                 <input

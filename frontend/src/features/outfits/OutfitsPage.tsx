@@ -47,22 +47,20 @@ export default function OutfitsPage() {
   const isInitialLoading = outfitsQuery.isPending
 
   return (
-    <section aria-labelledby="outfits-title" className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="outfits-title" className="space-y-8">
+      <div className="grid items-end gap-5 border-b border-ink/60 pb-5 lg:grid-cols-[1fr_auto]">
         <div>
-          <h1
-            id="outfits-title"
-            className="font-display text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl"
-          >
+          <p className="editorial-kicker">Composiciones</p>
+          <h1 id="outfits-title" className="editorial-title mt-2">
             Outfits
           </h1>
-          <p className="mt-1 text-sm text-stone-500">
+          <p className="mt-4 max-w-xl font-serif text-[15px] leading-relaxed text-stone-600">
             Combinaciones armadas con tus prendas reales.
           </p>
           {isDemo && (
             <p
               role="note"
-              className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"
+              className="mt-3 max-w-xl border-l-2 border-oxblood pl-3 font-serif text-xs text-stone-600"
             >
               La demo pública es de solo lectura: podés explorar los outfits de
               ejemplo, pero no modificarlos.
@@ -77,7 +75,7 @@ export default function OutfitsPage() {
                 setEditor(null)
                 setShowSuggestions(true)
               }}
-              className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-700 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="editorial-btn"
             >
               Sugerir outfits
             </button>
@@ -87,7 +85,7 @@ export default function OutfitsPage() {
                 setShowSuggestions(false)
                 setEditor({})
               }}
-              className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="editorial-btn-outline"
             >
               Crear outfit
             </button>
@@ -110,7 +108,7 @@ export default function OutfitsPage() {
       {outfitsQuery.isError && (
         <div
           role="alert"
-          className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-900"
+          className="border border-red-200 bg-red-50 p-5 font-sans text-sm text-red-900"
         >
           <p className="font-medium">No pudimos cargar los outfits.</p>
           <p className="mt-1 text-red-800">
@@ -121,7 +119,7 @@ export default function OutfitsPage() {
           <button
             type="button"
             onClick={() => void outfitsQuery.refetch()}
-            className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 font-medium text-red-900 transition-colors hover:bg-red-100"
+            className="editorial-btn-outline mt-4 border-red-300 text-red-900 hover:bg-red-900"
           >
             Reintentar
           </button>
@@ -131,7 +129,7 @@ export default function OutfitsPage() {
       {!outfitsQuery.isError && (isInitialLoading || outfits.length > 0) && (
         <div className="space-y-4">
           {!isInitialLoading && (
-            <p className="text-xs text-stone-500" aria-live="polite">
+            <p className="editorial-meta uppercase" aria-live="polite">
               {outfits.length === 1
                 ? '1 outfit guardado'
                 : `${outfits.length} outfits guardados`}
@@ -140,7 +138,7 @@ export default function OutfitsPage() {
 
           <ul
             aria-busy={isInitialLoading}
-            className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3"
+            className="grid gap-px border border-stone-300/80 bg-stone-300/80 sm:grid-cols-2 xl:grid-cols-3"
           >
             {isInitialLoading
               ? Array.from({ length: 6 }, (_, index) => (
@@ -164,20 +162,17 @@ export default function OutfitsPage() {
       {!outfitsQuery.isError &&
         !isInitialLoading &&
         outfits.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
-            <CollageIcon className="mx-auto size-10 text-stone-300" />
-            <h2 className="mt-4 text-base font-medium text-stone-900">
+          <div className="border border-dashed border-stone-400 px-6 py-14 text-center">
+            <CollageIcon className="mx-auto size-10 text-stone-400" />
+            <h2 className="mt-4 text-xl text-ink">
               Todavía no guardaste outfits
             </h2>
-            <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
+            <p className="mx-auto mt-2 max-w-sm font-serif text-sm text-stone-600">
               {isDemo
                 ? 'La demo pública es de solo lectura: podés explorar el guardarropa de ejemplo, pero no crear outfits.'
                 : 'Cuando guardes uno, va a aparecer acá como un collage de tus prendas reales.'}
             </p>
-            <Link
-              to="/guardarropa"
-              className="mt-4 inline-flex rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-700"
-            >
+            <Link to="/guardarropa" className="editorial-btn mt-5">
               Ir al guardarropa
             </Link>
           </div>

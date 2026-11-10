@@ -7,9 +7,6 @@ interface GarmentFiltersProps {
   colorOptions?: readonly string[]
 }
 
-const selectClassName =
-  'w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm transition-colors focus:border-stone-500 focus:ring-2 focus:ring-stone-300 focus:outline-none sm:w-auto'
-
 export function GarmentFilters({
   filters,
   onChange,
@@ -18,9 +15,9 @@ export function GarmentFilters({
   const hasFilters = Boolean(filters.category || filters.color || filters.season)
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <label className="flex flex-col gap-1 text-xs font-medium text-stone-500">
-        Categoría
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-8">
+      <label className="flex min-w-36 flex-col gap-1">
+        <span className="editorial-label">Categoría</span>
         <select
           value={filters.category}
           onChange={(event) =>
@@ -29,7 +26,7 @@ export function GarmentFilters({
               category: event.target.value as GarmentFiltersState['category'],
             })
           }
-          className={selectClassName}
+          className="editorial-field"
         >
           <option value="">Todas</option>
           {CATEGORY_OPTIONS.map((option) => (
@@ -40,8 +37,8 @@ export function GarmentFilters({
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-xs font-medium text-stone-500">
-        Color
+      <label className="flex min-w-36 flex-col gap-1">
+        <span className="editorial-label">Color</span>
         <input
           type="text"
           list="wardrobe-color-options"
@@ -50,7 +47,7 @@ export function GarmentFilters({
             onChange({ ...filters, color: event.target.value })
           }
           placeholder="Todos"
-          className={selectClassName}
+          className="editorial-field"
         />
         <datalist id="wardrobe-color-options">
           {colorOptions.map((color) => (
@@ -59,8 +56,8 @@ export function GarmentFilters({
         </datalist>
       </label>
 
-      <label className="flex flex-col gap-1 text-xs font-medium text-stone-500">
-        Temporada
+      <label className="flex min-w-36 flex-col gap-1">
+        <span className="editorial-label">Temporada</span>
         <select
           value={filters.season}
           onChange={(event) =>
@@ -69,7 +66,7 @@ export function GarmentFilters({
               season: event.target.value as GarmentFiltersState['season'],
             })
           }
-          className={selectClassName}
+          className="editorial-field"
         >
           <option value="">Todas</option>
           {SEASON_OPTIONS.map((option) => (
@@ -84,7 +81,7 @@ export function GarmentFilters({
         <button
           type="button"
           onClick={() => onChange({ category: '', color: '', season: '' })}
-          className="self-start rounded-xl px-3 py-2 text-sm font-medium text-stone-600 underline-offset-4 transition-colors hover:text-stone-900 hover:underline sm:self-auto"
+          className="editorial-link self-start pb-2 text-stone-600 sm:self-auto"
         >
           Limpiar filtros
         </button>

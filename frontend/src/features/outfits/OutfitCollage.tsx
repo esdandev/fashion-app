@@ -51,7 +51,7 @@ export function OutfitCollage({
   if (visible.length === 0) {
     return (
       <div
-        className={`flex aspect-[2/3] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-100 text-xs text-stone-400 ${className}`}
+        className={`flex aspect-[2/3] items-center justify-center border border-dashed border-stone-400 bg-stone-100 font-sans text-[10px] tracking-[0.12em] text-stone-500 uppercase ${className}`}
       >
         Sin prendas
       </div>
@@ -63,12 +63,12 @@ export function OutfitCollage({
       role="group"
       aria-label={name}
       data-testid="outfit-mannequin"
-      className={`relative aspect-[2/3] overflow-hidden rounded-2xl border border-stone-200 bg-gradient-to-b from-stone-50 via-white to-stone-100 ${className}`}
+      className={`relative aspect-[2/3] overflow-hidden border border-stone-300/80 bg-gradient-to-b from-stone-50 via-white to-stone-100 ${className}`}
     >
       {/* A subtle vertical guide gives the stack its mannequin silhouette. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-5 left-1/2 w-px -translate-x-1/2 bg-stone-200/80"
+        className="pointer-events-none absolute inset-y-5 left-1/2 w-px -translate-x-1/2 bg-stone-300/70"
       />
 
       <div className="relative flex h-full flex-col">
@@ -77,7 +77,7 @@ export function OutfitCollage({
           return (
             <div
               key={`${item.garment.id}-${item.sortOrder}`}
-              className="relative min-h-0 flex-1 overflow-hidden border-b border-stone-200/60 last:border-b-0"
+              className="relative min-h-0 flex-1 overflow-hidden border-b border-stone-300/50 last:border-b-0"
             >
               <img
                 src={mediaUrl(item.garment.thumbUrl)}
@@ -90,7 +90,7 @@ export function OutfitCollage({
               />
               {isLast && hiddenCount > 0 && (
                 <span
-                  className="absolute inset-0 flex items-center justify-center bg-stone-950/55 text-sm font-semibold text-white"
+                  className="absolute inset-0 flex items-center justify-center bg-ink/55 font-sans text-sm font-semibold text-paper"
                   aria-label={`${hiddenCount} prendas más`}
                 >
                   +{hiddenCount}

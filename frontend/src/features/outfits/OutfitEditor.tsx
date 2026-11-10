@@ -84,16 +84,19 @@ export function OutfitEditor({ outfit, onClose }: OutfitEditorProps) {
   return (
     <section
       aria-labelledby="outfit-editor-title"
-      className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6"
+      className="border border-stone-300/80 bg-white p-4 sm:p-6"
     >
-      <div className="mb-4">
+      <div className="mb-5 border-b border-stone-300/80 pb-4">
+        <p className="editorial-kicker">
+          {outfit ? 'Editar composición' : 'Nueva composición'}
+        </p>
         <h2
           id="outfit-editor-title"
-          className="font-display text-xl font-semibold tracking-tight text-stone-900"
+          className="mt-2 font-display text-3xl leading-none tracking-[-0.04em] text-ink"
         >
           {outfit ? 'Editar outfit' : 'Nuevo outfit'}
         </h2>
-        <p className="mt-1 text-sm text-stone-500">
+        <p className="mt-2 max-w-2xl font-serif text-sm leading-relaxed text-stone-600">
           {outfit
             ? 'Cambiá el nombre, la ocasión o las prendas. Al guardar volvés al listado.'
             : 'Elegí las prendas y mirá el collage mientras lo armás. Al guardar volvés al listado.'}
@@ -103,7 +106,7 @@ export function OutfitEditor({ outfit, onClose }: OutfitEditorProps) {
       {wardrobeQuery.isPending && (
         <p
           role="status"
-          className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-500"
+          className="border border-stone-300/80 bg-stone-50 p-6 text-center font-serif text-sm text-stone-600"
         >
           Cargando tu guardarropa…
         </p>
@@ -112,7 +115,7 @@ export function OutfitEditor({ outfit, onClose }: OutfitEditorProps) {
       {wardrobeQuery.isError && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+          className="border border-red-200 bg-red-50 p-4 font-sans text-sm text-red-900"
         >
           <p className="font-medium">No pudimos cargar el guardarropa.</p>
           <p className="mt-1 text-red-800">
@@ -123,7 +126,7 @@ export function OutfitEditor({ outfit, onClose }: OutfitEditorProps) {
           <button
             type="button"
             onClick={() => void wardrobeQuery.refetch()}
-            className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 font-medium text-red-900 transition-colors hover:bg-red-100"
+            className="editorial-btn-outline mt-3 border-red-300 text-red-900 hover:bg-red-900"
           >
             Reintentar
           </button>

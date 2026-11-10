@@ -457,6 +457,7 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 29 | Sin IA: alta manual por lotes y outfits por reglas | Gemini/OpenCode para análisis y sugerencias | Elimina claves, costos, errores de proveedor y dependencias externas; el catálogo queda 100% bajo control del usuario. |
 | 29 | Rate limit por IP real detrás del proxy: `Fly-Client-IP`, luego el primer `X-Forwarded-For`, luego la dirección del socket | Particionar por `RemoteIpAddress` | Fly termina TLS y el socket es el edge: sin resolver, todos los visitantes comparten un bucket. La Machine debe quedar accesible solo por el proxy, porque esos headers se falsifican en una conexión directa. |
 | 30 | Aceptar el LCP local de 3,21 s como deuda documentada de la Fase 4 | Reescribir el hero en esta ola | El resto del presupuesto se cumple (CLS 0,060; TBT 42–55 ms) y la causa del LCP todavía es una hipótesis; se prioriza cerrar deploy, demo, CI y documentación. La medición y el criterio de salida quedan en [[perf-followup]]. |
+| 31 | Adoptar el tema editorial-atelier en la SPA real | Mantener la UI neutra con tarjetas redondeadas | El modelo 01 de la exploración visual concentra la identidad del producto: papel cálido, Bodoni, vino, reglas finas y grillas tipo revista. Se aplicó con tokens y componentes reutilizables, sin cambiar el comportamiento ni los endpoints. |
 
 ## Bitácora
 
@@ -477,3 +478,4 @@ Evitar explícitamente: SSR/SSG (no hace falta y agrega complejidad), virtualiza
 | 2026-11-09 | Agregado adaptador OpenAI Chat Completions: con `AI__PROVIDER=opencode` y un modelo no-Gemini (DeepSeek V4.1 Flash, GLM, Qwen) usa `/openai/v1/chat/completions`, envía la imagen como data URL y expone `apiFamily` en `/api/ai/status`. |
 | 2026-11-09 | Agregado `scripts/run-backend.ps1` para sortear Smart App Control: compila en Release y ejecuta el DLL sin el apphost `.exe`. |
 | 2026-11-09 | Eliminada la IA del producto: alta manual por lotes, outfits solo con reglas, digest con resumen del feed y etiquetas por palabras clave. Se borraron endpoints, clientes, cuotas y pruebas de IA. |
+| 2026-11-10 | Aplicado el tema editorial-atelier a la SPA: tokens de papel/tinta/vino, Bodoni para títulos, Gill Sans para UI, reglas finas y grillas sin tarjetas redondeadas. Se actualizaron Hoy, Guardarropa, Outfits, filtros, formularios y diálogos. Verificado en 1440/768/390 sin overflow ni texto menor a 10 px; 48 tests, lint, build y 11 E2E en verde. |

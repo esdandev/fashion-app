@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ApiError, api } from '../../lib/api'
+import { ApiError, api, mediaUrl } from '../../lib/api'
+import type { Garment } from '../../lib/types'
 import { DigestCard, DigestCardSkeleton } from './DigestCard'
 import { formatDigestDate } from './digestFormat'
 
@@ -13,7 +15,7 @@ function SunIcon({ className }: { className?: string }) {
       viewBox="0 0 48 48"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.5"
       strokeLinecap="round"
       aria-hidden="true"
       className={className}
@@ -26,22 +28,15 @@ function SunIcon({ className }: { className?: string }) {
 
 function TodaySkeleton() {
   return (
-    <div role="status" className="space-y-6">
+    <div role="status" className="space-y-8">
       <span className="sr-only">Cargando el resumen de hoy…</span>
-      <div
-        aria-hidden="true"
-        className="rounded-3xl bg-stone-900 px-6 py-8 sm:px-10 sm:py-10"
-      >
-        <div className="h-3 w-24 animate-pulse rounded bg-white/20" />
-        <div className="mt-3 h-8 w-2/3 animate-pulse rounded bg-white/15" />
-        <div className="mt-4 h-4 w-full max-w-prose animate-pulse rounded bg-white/10" />
-        <div className="mt-2 h-4 w-3/4 max-w-prose animate-pulse rounded bg-white/10" />
-        <div className="mt-5 h-5 w-28 animate-pulse rounded-full bg-white/10" />
+      <div aria-hidden="true" className="border-y border-stone-300/80 px-2 py-10">
+        <div className="h-3 w-28 animate-pulse bg-stone-200" />
+        <div className="mt-5 h-14 w-2/3 animate-pulse bg-stone-200" />
+        <div className="mt-6 h-4 w-full max-w-prose animate-pulse bg-stone-100" />
+        <div className="mt-2 h-4 w-3/4 max-w-prose animate-pulse bg-stone-100" />
       </div>
-      <div
-        aria-hidden="true"
-        className="grid grid-cols-1 gap-4 md:grid-cols-2"
-      >
+      <div aria-hidden="true" className="divide-y divide-stone-300/80">
         {Array.from({ length: 4 }, (_, index) => (
           <DigestCardSkeleton key={index} />
         ))}
@@ -70,26 +65,36 @@ export default function TodayPage() {
 
   const digest = digestQuery.data
 
+  const relatedGarments = useMemo(() => {
+    const seen = new Map<string, Garment>()
+    for (const item of digest?.items ?? []) {
+      for (const garment of item.relatedGarments) {
+        if (!seen.has(garment.id)) seen.set(garment.id, garment)
+      }
+    }
+    return [...seen.values()].slice(0, 4)
+  }, [digest])
+
   return (
-    <section aria-labelledby="today-title" className="space-y-6">
-      <div>
-        <h1
-          id="today-title"
-          className="font-display text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl"
-        >
-          Hoy
-        </h1>
-        <p className="mt-1 text-sm text-stone-500">
+    <section aria-labelledby="today-title" className="space-y-9">
+      <header className="grid items-end gap-5 border-b border-ink/60 pb-5 lg:grid-cols-[1fr_auto]">
+        <div>
+          <p className="editorial-kicker">Edición diaria</p>
+          <h1 id="today-title" className="editorial-title mt-2">
+            Hoy
+          </h1>
+        </div>
+        <p className="max-w-sm font-serif text-[15px] leading-relaxed text-stone-600 italic lg:text-right">
           Lo que pasa en la moda, conectado con las prendas que ya tenés.
         </p>
-      </div>
+      </header>
 
       {digestQuery.isPending && <TodaySkeleton />}
 
       {digestQuery.isError && !digest && (
         <div
           role="alert"
-          className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-900"
+          className="border border-red-200 bg-red-50 p-5 font-sans text-sm text-red-900"
         >
           <p className="font-medium">No pudimos cargar el resumen de hoy.</p>
           <p className="mt-1 text-red-800">
@@ -100,7 +105,7 @@ export default function TodayPage() {
           <button
             type="button"
             onClick={() => void digestQuery.refetch()}
-            className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 font-medium text-red-900 transition-colors hover:bg-red-100"
+            className="editorial-btn-outline mt-4 border-red-300 text-red-900 hover:bg-red-900"
           >
             Reintentar
           </button>
@@ -108,19 +113,14 @@ export default function TodayPage() {
       )}
 
       {!digestQuery.isPending && !digestQuery.isError && !digest && (
-        <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
-          <SunIcon className="mx-auto size-10 text-stone-300" />
-          <h2 className="mt-4 text-base font-medium text-stone-900">
-            Todavía no hay resumen de hoy
-          </h2>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-stone-500">
+        <div className="border border-dashed border-stone-400 px-6 py-14 text-center">
+          <SunIcon className="mx-auto size-10 text-stone-400" />
+          <h2 className="mt-4 text-xl text-ink">Todavía no hay resumen de hoy</h2>
+          <p className="mx-auto mt-2 max-w-sm font-serif text-sm text-stone-600">
             El resumen se genera cada mañana. Mientras tanto, podés revisar tu
             guardarropa.
           </p>
-          <Link
-            to="/guardarropa"
-            className="mt-4 inline-flex rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-700"
-          >
+          <Link to="/guardarropa" className="editorial-btn mt-5">
             Ver mi guardarropa
           </Link>
         </div>
@@ -128,36 +128,94 @@ export default function TodayPage() {
 
       {digest && (
         <>
-          <header className="rounded-3xl bg-stone-900 px-6 py-8 text-white shadow-sm sm:px-10 sm:py-10">
-            <p className="text-[11px] font-medium tracking-[0.2em] text-stone-400 uppercase">
-              Resumen del día
-            </p>
-            <h2 className="font-display mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-              {formatDigestDate(digest.date)}
-            </h2>
-            <p className="mt-3 max-w-prose text-sm leading-relaxed text-stone-300 sm:text-base">
-              {digest.summary}
-            </p>
-            <p className="mt-5 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-stone-200">
-              {digest.items.length === 1
-                ? '1 novedad'
-                : `${digest.items.length} novedades`}
-            </p>
-          </header>
+          <section
+            className={`grid border-b border-ink/60 ${
+              relatedGarments.length > 0 ? 'lg:grid-cols-[1.4fr_1fr]' : ''
+            }`}
+          >
+            <div
+              className={`py-7 ${
+                relatedGarments.length > 0
+                  ? 'lg:border-r lg:border-ink/25 lg:pr-10'
+                  : ''
+              }`}
+            >
+              <p className="editorial-kicker">Resumen del día</p>
+              <h2 className="editorial-section-title mt-3">
+                {formatDigestDate(digest.date)}
+              </h2>
+              <p className="mt-5 max-w-prose font-serif text-[17px] leading-relaxed text-stone-700">
+                {digest.summary}
+              </p>
+              <p className="editorial-meta mt-5 uppercase">
+                {digest.items.length === 1
+                  ? '1 novedad'
+                  : `${digest.items.length} novedades`}
+              </p>
+            </div>
+
+            {relatedGarments.length > 0 && (
+              <aside className="py-7 lg:pl-10">
+                <p className="editorial-kicker">En tu guardarropa</p>
+                <ul className="mt-4 space-y-2">
+                  {relatedGarments.map((garment) => (
+                    <li
+                      key={garment.id}
+                      className="flex items-center gap-3 border-b border-stone-300/60 pb-2"
+                    >
+                      <img
+                        src={mediaUrl(garment.thumbUrl)}
+                        alt=""
+                        width={160}
+                        height={160}
+                        loading="lazy"
+                        decoding="async"
+                        className="size-12 shrink-0 border border-stone-300/80 bg-stone-100 object-cover"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-display text-[17px] leading-tight">
+                          {garment.name}
+                        </span>
+                        <span className="editorial-meta block truncate uppercase">
+                          {garment.colorName}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            )}
+          </section>
 
           {digest.items.length > 0 ? (
-            <ul
-              aria-label="Novedades del día"
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
-            >
-              {digest.items.map((item, index) => (
-                <li key={item.id} className="min-w-0">
-                  <DigestCard item={item} priority={index === 0} />
-                </li>
-              ))}
-            </ul>
+            <section>
+              <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2">
+                <h2 className="editorial-section-title text-3xl sm:text-4xl">
+                  Despacho de moda
+                </h2>
+                <span className="editorial-meta uppercase">
+                  {digest.items.length === 1
+                    ? 'Una lectura'
+                    : `${digest.items.length} lecturas`}
+                </span>
+              </div>
+              <ul
+                aria-label="Novedades del día"
+                className="divide-y divide-stone-300/80"
+              >
+                {digest.items.map((item, index) => (
+                  <li key={item.id} className="min-w-0">
+                    <DigestCard
+                      item={item}
+                      index={index}
+                      priority={index === 0}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : (
-            <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center text-sm text-stone-500">
+            <div className="border border-dashed border-stone-400 px-6 py-12 text-center font-serif text-sm text-stone-600">
               Todavía no hay novedades para hoy.
             </div>
           )}
