@@ -1,5 +1,7 @@
 # Fashion App
 
+**Demo pública:** https://fashion-app-demo.fly.dev
+
 App web personal de moda: subí fotos de tus prendas, completá sus datos a mano
 y convertí el guardarropa en la base para armar outfits y leer un resumen diario
 de noticias relacionado con lo que ya tenés.
